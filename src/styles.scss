@@ -1,0 +1,25 @@
+@use '@angular/material' as mat;
+
+:root {
+  --brand: #2563eb;
+  --brand-dark: #1d4ed8;
+  --canvas: #f5f7fb;
+  --ink: #172033;
+  --muted: #718096;
+  --line: #e6eaf0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--canvas);
+  @include mat.form-field-overrides((outlined-container-shape: 9px, outlined-outline-color: #dfe5ed, outlined-focus-outline-color: #2563eb, container-height: 43px, container-vertical-padding: 10px));
+  @include mat.button-overrides((filled-container-color: #2563eb, filled-label-text-color: white, filled-container-shape: 9px));
+  @include mat.progress-bar-overrides((active-indicator-color: #2563eb, track-color: #e7eef9, track-height: 6px, active-indicator-height: 6px));
+}
+
+html, body { min-height: 100%; margin: 0; }
+body { background: var(--canvas); }
+button, input, select { font: inherit; }
+* { box-sizing: border-box; }
+::selection { background: #bfdbfe; color: #1e3a8a; }
+.mat-mdc-form-field { font-size: 12px; }
+.mat-mdc-menu-item { font-size: 12px !important; }
+.mat-mdc-snack-bar-container { --mat-snack-bar-container-color: #172033; --mat-snack-bar-supporting-text-color: white; }

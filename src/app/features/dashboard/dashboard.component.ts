@@ -1,0 +1,71 @@
+import { Component } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { DataService } from '../../core/data.service';
+
+@Component({
+  selector: 'app-dashboard',
+  imports: [CurrencyPipe, RouterLink, MatButtonModule, MatIconModule, MatProgressBarModule],
+  template: `
+    <div class="page-heading">
+      <div><span class="eyebrow">Saturday, July 18</span><h1>Good afternoon, Alex</h1><p>Here’s what’s happening with your rental business today.</p></div>
+      <a mat-flat-button routerLink="/bookings"><mat-icon>add</mat-icon>New booking</a>
+    </div>
+
+    <section class="metrics">
+      @for (metric of metrics; track metric.label) {
+        <article class="metric-card">
+          <div class="metric-icon" [style.background]="metric.bg" [style.color]="metric.color"><mat-icon>{{ metric.icon }}</mat-icon></div>
+          <span>{{ metric.label }}</span><strong>{{ metric.value }}</strong>
+          <small [class.positive]="metric.positive"><mat-icon>{{ metric.positive ? 'trending_up' : 'schedule' }}</mat-icon>{{ metric.note }}</small>
+        </article>
+      }
+    </section>
+
+    <div class="content-grid">
+      <section class="panel revenue">
+        <header><div><h2>Revenue overview</h2><p>Monthly rental income</p></div><button>Last 6 months <mat-icon>expand_more</mat-icon></button></header>
+        <div class="chart">
+          <div class="y-labels"><span>$30k</span><span>$20k</span><span>$10k</span><span>$0</span></div>
+          <div class="plot">
+            <i></i><i></i><i></i><i></i>
+            <svg viewBox="0 0 600 190" preserveAspectRatio="none" aria-label="Revenue trending upward">
+              <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2563eb" stop-opacity=".24"/><stop offset="1" stop-color="#2563eb" stop-opacity="0"/></linearGradient></defs>
+              <path class="area" d="M0 160 C55 145 76 120 120 133 S205 95 240 105 S325 63 360 79 S445 33 480 50 S555 15 600 25 L600 190 L0 190Z"/>
+              <path class="line" d="M0 160 C55 145 76 120 120 133 S205 95 240 105 S325 63 360 79 S445 33 480 50 S555 15 600 25"/>
+            </svg>
+            <div class="x-labels"><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel fleet">
+        <header><div><h2>Fleet status</h2><p>Live vehicle availability</p></div><a routerLink="/vehicles">View all</a></header>
+        <div class="donut-row"><div class="donut"><div><b>5</b><span>Vehicles</span></div></div>
+          <div class="legend"><span><i class="available"></i><b>Available</b><em>5</em></span><span><i class="rented"></i><b>Rented</b><em>0</em></span><span><i class="maintenance"></i><b>Maintenance</b><em>0</em></span></div>
+        </div>
+        <div class="util"><span>Fleet utilization <b>67%</b></span><mat-progress-bar mode="determinate" value="67" /></div>
+      </section>
+    </div>
+
+    <section class="panel bookings-panel">
+      <header><div><h2>Recent bookings</h2><p>Latest activity across your fleet</p></div><a routerLink="/bookings">View all bookings <mat-icon>arrow_forward</mat-icon></a></header>
+      <div class="table-wrap"><table><thead><tr><th>Booking</th><th>Customer</th><th>Vehicle</th><th>Rental period</th><th>Total</th><th>Status</th></tr></thead>
+        <tbody>@for (booking of data.bookings(); track booking.id) {<tr><td><b>{{ booking.id }}</b></td><td><span class="customer-avatar">{{ booking.customer[0] }}</span>{{ booking.customer }}</td><td>{{ booking.vehicle }}</td><td>{{ booking.period }}</td><td><b>{{ booking.total | currency }}</b></td><td><span class="status" [attr.data-status]="booking.status">{{ booking.status }}</span></td></tr>}</tbody>
+      </table></div>
+    </section>
+  `,
+  styleUrl: './dashboard.component.scss',
+})
+export class DashboardComponent {
+  readonly metrics = [
+    { label: 'Total revenue', value: '$24,680', note: '12.5% vs last month', positive: true, icon: 'payments', bg: '#dcfce7', color: '#16a34a' },
+    { label: 'Active rentals', value: '18', note: '4 due back today', positive: false, icon: 'key', bg: '#dbeafe', color: '#2563eb' },
+    { label: 'Available vehicles', value: '5', note: 'All listings available', positive: true, icon: 'directions_car', bg: '#e0e7ff', color: '#4f46e5' },
+    { label: 'New customers', value: '36', note: '8.2% vs last month', positive: true, icon: 'person_add', bg: '#fef3c7', color: '#d97706' },
+  ];
+  constructor(readonly data: DataService) {}
+}
