@@ -1,0 +1,59 @@
+<div class="login-page">
+  <section class="showcase">
+    <a class="brand" routerLink="/" aria-label="Bill's Premiere home"><span><img src="assets/bills-premiere-logo.png" alt=""></span><b>Bill’s Premiere</b></a>
+    <div class="showcase-copy">
+      <div class="eyebrow">Rental operations, simplified</div>
+      <h1>Keep every journey<br><em>moving forward.</em></h1>
+      <p>One clear workspace for your fleet, bookings, customers, and team.</p>
+      <div class="proof">
+        <div><strong>98.6%</strong><span>Fleet uptime</span></div>
+        <div><strong>1,240+</strong><span>Trips managed</span></div>
+        <div><strong>4.9/5</strong><span>Customer rating</span></div>
+      </div>
+    </div>
+    <div class="road"><span></span><span></span><span></span></div>
+  </section>
+  <section class="login-panel">
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <a class="mobile-brand" routerLink="/" aria-label="Bill's Premiere home"><span><img src="assets/bills-premiere-logo.png" alt=""></span><b>Bill’s Premiere</b></a>
+      <span class="welcome">{{ mode() === 'signIn' ? 'Welcome back' : 'Account security' }}</span>
+      <h2>{{ title() }}</h2>
+      <p class="intro">{{ intro() }}</p>
+
+      <label>Email address</label>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-icon matPrefix>mail_outline</mat-icon>
+        <input matInput type="email" formControlName="email" autocomplete="email">
+      </mat-form-field>
+      @if (mode() === 'signIn') {
+        <label>Password</label>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-icon matPrefix>lock_outline</mat-icon>
+          <input matInput [type]="hidePassword() ? 'password' : 'text'" formControlName="password" autocomplete="current-password">
+          <button type="button" mat-icon-button matSuffix (click)="hidePassword.set(!hidePassword())" aria-label="Toggle password visibility"><mat-icon>{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon></button>
+        </mat-form-field>
+        <div class="form-options"><mat-checkbox formControlName="remember">Remember me</mat-checkbox><button type="button" (click)="setMode('forgot')">Forgot password?</button></div>
+      }
+      @if (mode() === 'newPassword') {
+        <label>Full name</label>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-icon matPrefix>person_outline</mat-icon><input matInput formControlName="name" autocomplete="name"></mat-form-field>
+        <label>Create a permanent password</label>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-icon matPrefix>lock_outline</mat-icon><input matInput type="password" formControlName="newPassword" autocomplete="new-password"></mat-form-field>
+      }
+      @if (mode() === 'confirmReset') {
+        <label>Verification code</label>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-icon matPrefix>pin</mat-icon><input matInput formControlName="code" inputmode="numeric" autocomplete="one-time-code"></mat-form-field>
+        <label>New password</label>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-icon matPrefix>lock_outline</mat-icon><input matInput type="password" formControlName="newPassword" autocomplete="new-password"></mat-form-field>
+      }
+      @if (error()) { <div class="error"><mat-icon>error_outline</mat-icon>{{ error() }}</div> }
+      @if (notice()) { <div class="notice"><mat-icon>mark_email_read</mat-icon>{{ notice() }}</div> }
+      <button mat-flat-button class="sign-in" type="submit" [disabled]="form.controls.email.invalid || loading()">
+        {{ loading() ? 'Please wait…' : actionLabel() }} @if (!loading()) { <mat-icon>arrow_forward</mat-icon> }
+      </button>
+      @if (mode() !== 'signIn' && mode() !== 'newPassword') { <button type="button" class="back-login" (click)="setMode('signIn')">Back to sign in</button> }
+      <p class="demo"><mat-icon>verified_user</mat-icon>Authentication and password recovery are secured by Amazon Cognito.</p>
+    </form>
+    <footer>© 2026 Bill’s Premiere · Privacy · Support</footer>
+  </section>
+</div>

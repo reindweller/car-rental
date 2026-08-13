@@ -2,7 +2,7 @@ export type UserRole = 'Administrator' | 'Manager' | 'Agent';
 export type UserStatus = 'Active' | 'Invited' | 'Suspended';
 
 export interface AppUser {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: UserRole;
@@ -28,22 +28,42 @@ export interface Vehicle {
   review: string;
   reviewer: string;
   imageUrl: string;
+  imageUrls?: string[];
+  carLocation?: string;
+  pickupLocations?: string[];
   turoUrl: string;
   features: { group: string; items: string[] }[];
   included: string[];
+  rules?: string[];
   extras: { name: string; description: string; price: string }[];
-  reviews: { author: string; date: string; rating: number; body: string }[];
+  reviews: VehicleReview[];
   status: 'Available' | 'Rented' | 'Maintenance';
   color: string;
   plate: string;
   emoji: string;
 }
 
+export interface VehicleReview {
+  id?: string;
+  author: string;
+  date: string;
+  rating: number;
+  body: string;
+}
+
 export interface Booking {
   id: string;
   customer: string;
+  email?: string;
+  phone?: string;
+  vehicleId?: number;
   vehicle: string;
+  startDate?: string;
+  endDate?: string;
+  pickupLocation?: string;
   period: string;
   total: number;
+  paymentIntentId?: string;
+  paymentStatus?: 'Paid' | 'Refunded' | 'Partially refunded';
   status: 'Confirmed' | 'Active' | 'Pending' | 'Completed';
 }

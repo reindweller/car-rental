@@ -1,0 +1,69 @@
+<div class="dialog-heading"><span><mat-icon>directions_car</mat-icon></span><div><h2 mat-dialog-title>{{ vehicle ? 'Edit vehicle' : 'Add a vehicle' }}</h2><p>{{ vehicle ? 'Update this vehicle’s details, availability, and customer listing.' : 'Publish a new vehicle across the fleet and customer booking pages.' }}</p></div></div>
+<mat-dialog-content>
+  <form [formGroup]="form">
+    <h3>Vehicle identity</h3>
+    <div class="fields two"><mat-form-field appearance="outline"><mat-label>Make and model</mat-label><input matInput formControlName="name" placeholder="e.g. Toyota Camry"><mat-error>Vehicle name is required</mat-error></mat-form-field><mat-form-field appearance="outline"><mat-label>Year</mat-label><input matInput type="number" formControlName="year" min="1990" max="2030"></mat-form-field></div>
+    <div class="fields three"><mat-form-field appearance="outline"><mat-label>Trim</mat-label><input matInput formControlName="trim" placeholder="e.g. XLE"></mat-form-field><mat-form-field appearance="outline"><mat-label>Category</mat-label><input matInput formControlName="category" placeholder="e.g. Sedan"></mat-form-field><mat-form-field appearance="outline"><mat-label>Plate or reference</mat-label><input matInput formControlName="plate"></mat-form-field></div>
+
+    <h3>Specifications and pricing</h3>
+    <div class="fields four"><mat-form-field appearance="outline"><mat-label>Seats</mat-label><input matInput type="number" formControlName="seats" min="1" max="15"></mat-form-field><mat-form-field appearance="outline"><mat-label>MPG</mat-label><input matInput type="number" formControlName="mpg" min="0"></mat-form-field><mat-form-field appearance="outline"><mat-label>Fuel</mat-label><mat-select formControlName="fuel"><mat-option value="Gas">Gas</mat-option><mat-option value="Hybrid">Hybrid</mat-option><mat-option value="Electric">Electric</mat-option><mat-option value="Diesel">Diesel</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Transmission</mat-label><mat-select formControlName="transmission"><mat-option value="Automatic">Automatic</mat-option><mat-option value="Manual">Manual</mat-option></mat-select></mat-form-field></div>
+    <div class="fields two"><mat-form-field appearance="outline"><mat-label>Daily price (USD)</mat-label><span matTextPrefix>$&nbsp;</span><input matInput type="number" formControlName="price" min="1" step="0.01"><mat-error>Enter a valid daily price</mat-error></mat-form-field><mat-form-field appearance="outline"><mat-label>Initial status</mat-label><mat-select formControlName="status"><mat-option value="Available">Available</mat-option><mat-option value="Rented">Rented</mat-option><mat-option value="Maintenance">Maintenance</mat-option></mat-select></mat-form-field></div>
+
+    <h3>Car location</h3>
+    <mat-form-field appearance="outline"><mat-label>Current vehicle address</mat-label><mat-icon matPrefix>garage</mat-icon><input matInput formControlName="carLocation" placeholder="Street, city, state, ZIP code"><mat-hint>The address where this vehicle is currently based</mat-hint><mat-error>Car location must be 250 characters or fewer</mat-error></mat-form-field>
+
+    <h3>Pickup locations</h3>
+    <div class="locations" formArrayName="pickupLocations">
+      @for (location of pickupLocations.controls; track location; let index = $index) {
+        <div class="location-row">
+          <mat-form-field appearance="outline"><mat-label>Pickup address {{ index + 1 }}</mat-label><mat-icon matPrefix>location_on</mat-icon><input matInput [formControlName]="index" placeholder="Street, city, state, ZIP code"><mat-error>Enter a valid pickup address</mat-error></mat-form-field>
+          <button type="button" mat-icon-button (click)="removePickupLocation(index)" [attr.aria-label]="'Remove pickup address ' + (index + 1)"><mat-icon>delete_outline</mat-icon></button>
+        </div>
+      }
+      <button type="button" mat-stroked-button class="add-location" (click)="addPickupLocation()" [disabled]="pickupLocations.length >= 15"><mat-icon>add_location_alt</mat-icon>Add pickup location</button>
+      <p class="location-help">Add up to 15 addresses where customers can collect this vehicle.</p>
+    </div>
+
+    <h3>Customer listing</h3>
+    <div class="photo-upload">
+      <input #photoInput hidden type="file" multiple accept="image/jpeg,image/png,image/webp" (change)="selectPhotos($any($event.target).files); photoInput.value = ''">
+      <button type="button" class="upload-button" (click)="photoInput.click()" [disabled]="existingPhotoUrls().length + selectedPhotos().length >= 15 || processingPhotos()">
+        <mat-icon>{{ processingPhotos() ? 'hourglass_top' : 'cloud_upload' }}</mat-icon>
+        <span><b>{{ processingPhotos() ? 'Preparing 16:9 crops…' : selectedPhotos().length ? 'Add more vehicle photos' : 'Upload vehicle photos' }}</b><small>Up to 15 JPEG, PNG, or WebP photos · Large files are resized below 8 MB</small></span>
+      </button>
+      @if (selectedPhotos().length) {
+        <div class="photo-count">{{ existingPhotoUrls().length + selectedPhotos().length }} of 15 photos selected · All photos are saved at 16:9 · The first is primary</div>
+        <div class="selected-files">
+          @for (photo of selectedPhotos(); track photo.name + photo.size + $index; let index = $index) {
+            <div class="selected-file"><mat-icon>image</mat-icon><span><b>{{ photo.name }}</b><small>{{ fileSize(photo) }} · 16:9{{ index === 0 ? ' · Primary' : '' }}</small></span><button type="button" mat-icon-button (click)="editCrop(index)" [attr.aria-label]="'Crop ' + photo.name"><mat-icon>crop</mat-icon></button><button type="button" mat-icon-button (click)="removePhoto(index, photoInput)" [attr.aria-label]="'Remove ' + photo.name"><mat-icon>close</mat-icon></button></div>
+          }
+        </div>
+      }
+      @if (cropIndex() !== null) {
+        <div class="crop-editor">
+          <div class="crop-heading"><span><b>Crop photo {{ cropIndex()! + 1 }}</b><small>Adjust the image inside the fixed 16:9 frame.</small></span><button type="button" mat-icon-button (click)="cancelCrop()" aria-label="Close crop editor"><mat-icon>close</mat-icon></button></div>
+          <div class="crop-frame"><img [src]="originalPreviews()[cropIndex()!]" alt="Photo crop preview" [style.object-position]="cropX() + '% ' + cropY() + '%'" [style.transform]="'scale(' + cropZoom() + ')'"></div>
+          <div class="crop-controls">
+            <label><span>Horizontal</span><input type="range" min="0" max="100" [value]="cropX()" (input)="cropX.set(+$any($event.target).value)"></label>
+            <label><span>Vertical</span><input type="range" min="0" max="100" [value]="cropY()" (input)="cropY.set(+$any($event.target).value)"></label>
+            <label><span>Zoom</span><input type="range" min="1" max="3" step="0.05" [value]="cropZoom()" (input)="cropZoom.set(+$any($event.target).value)"></label>
+          </div>
+          <div class="crop-actions"><button type="button" mat-button (click)="cancelCrop()">Cancel</button><button type="button" mat-flat-button (click)="applyCrop()" [disabled]="processingPhotos()"><mat-icon>crop</mat-icon>Apply 16:9 crop</button></div>
+        </div>
+      }
+      @if (photoError()) { <p class="photo-error"><mat-icon>error_outline</mat-icon>{{ photoError() }}</p> }
+    </div>
+    @if (previewSources().length) {
+      <p class="photo-order-help"><mat-icon>drag_indicator</mat-icon>Drag photos to set their display order. The first photo is the primary photo.</p>
+      <div class="previews" cdkDropList (cdkDropListDropped)="reorderPhotos($event)">
+        @for (preview of previewSources(); track preview; let index = $index) {
+          <div class="preview" cdkDrag><img [src]="preview" [alt]="'Vehicle photo preview ' + (index + 1)"><span>{{ index === 0 ? 'Primary photo' : 'Photo ' + (index + 1) }}</span><button type="button" class="drag-handle" cdkDragHandle [attr.aria-label]="'Move photo ' + (index + 1)"><mat-icon>drag_indicator</mat-icon></button></div>
+        }
+      </div>
+    }
+    <mat-form-field class="listing-text-field" appearance="outline"><mat-label>Vehicle features</mat-label><textarea matInput formControlName="features" rows="3" placeholder="Backup camera, Bluetooth, Keyless entry"></textarea><mat-hint>Separate each feature with a comma</mat-hint></mat-form-field>
+    <mat-form-field class="listing-text-field" appearance="outline"><mat-label>Included in the price</mat-label><textarea matInput formControlName="included" rows="3" placeholder="Roadside assistance, Customer support, Additional driver"></textarea><mat-hint>Separate each included item with a comma</mat-hint><mat-error>Add at least one included item</mat-error></mat-form-field>
+    <mat-form-field class="listing-text-field" appearance="outline"><mat-label>Rules of the road</mat-label><textarea matInput formControlName="rules" rows="3" placeholder="No smoking, Return with a full tank, No pets"></textarea><mat-hint>Separate each rule with a comma</mat-hint><mat-error>Add at least one rule</mat-error></mat-form-field>
+  </form>
+</mat-dialog-content>
+<mat-dialog-actions align="end"><button mat-button mat-dialog-close>Cancel</button><button mat-flat-button [disabled]="!canSave()" (click)="save()"><mat-icon>{{ vehicle ? 'save' : 'add' }}</mat-icon>{{ vehicle ? 'Save changes' : 'Add vehicle' }}</button></mat-dialog-actions>

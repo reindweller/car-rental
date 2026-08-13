@@ -1,7 +1,7 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { provideNativeDateAdapter } from '@angular/material/core';
@@ -12,101 +12,79 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { DataService } from '../../core/data.service';
 import { Vehicle } from '../../core/models';
+import { environment } from '../../../environments/environment';
+
+interface StripeCardElement {
+  mount(selector: string): void;
+  clear(): void;
+  destroy(): void;
+  on(event: 'change', handler: (change: { complete: boolean; error?: { message: string } }) => void): void;
+}
+
+type StripeCardElementType = 'cardNumber' | 'cardExpiry' | 'cardCvc';
+
+interface StripeInstance {
+  elements(): { create(type: StripeCardElementType, options: object): StripeCardElement };
+  confirmCardPayment(clientSecret: string, data: object): Promise<{
+    error?: { message?: string };
+    paymentIntent?: { id: string; status: string };
+  }>;
+}
+
+declare global {
+  interface Window { Stripe?: (publishableKey: string) => StripeInstance; }
+}
 
 @Component({
   selector: 'app-customer-booking',
   imports: [CurrencyPipe, DatePipe, ReactiveFormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatDatepickerModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSnackBarModule],
   providers: [provideNativeDateAdapter()],
-  template: `
-    <div class="booking-page">
-      <header class="site-header"><a class="brand" routerLink="/"><span><mat-icon>directions_car</mat-icon></span><b>Bill’s Premiere</b></a><div class="secure"><mat-icon>lock</mat-icon>Secure booking</div><a class="staff" routerLink="/login">Staff login</a></header>
-
-      @if (confirmationId()) {
-        <main class="confirmation">
-          <div class="success-icon"><mat-icon>check</mat-icon></div><span>Booking confirmed</span><h1>You’re ready to drive.</h1><p>We sent the details to <b>{{ customerForm.controls.email.value }}</b>. Bring your driver’s license and payment card when you pick up the car.</p>
-          <article><div class="car-thumb" [style.background]="selectedVehicle().color"><img [src]="selectedVehicle().imageUrl" [alt]="selectedVehicle().name"></div><div><small>Booking reference</small><strong>{{ confirmationId() }}</strong><span>{{ selectedVehicle().year }} {{ selectedVehicle().name }} · {{ startDate() | date:'MMM d' }} – {{ endDate() | date:'MMM d, y' }}</span></div><b>{{ total() | currency }}</b></article>
-          <div class="confirmation-actions"><a mat-flat-button routerLink="/">Back to home</a><button mat-stroked-button (click)="bookAnother()">Book another car</button></div>
-        </main>
-      } @else {
-        <main class="booking-shell">
-          <div class="booking-heading"><a routerLink="/"><mat-icon>arrow_back</mat-icon>Back to home</a><span>Book your drive</span><h1>Choose your car and dates</h1><p>Clear pricing, instant confirmation, and free changes up to 24 hours before pickup.</p></div>
-
-          <div class="steps"><span class="active"><b>1</b>Car & dates</span><i></i><span [class.active]="datesComplete()"><b>2</b>Your details</span><i></i><span><b>3</b>Confirmation</span></div>
-
-          <div class="booking-grid">
-            <div class="booking-main">
-              <section class="panel choose-car">
-                <header><div><span>Step 1</span><h2>Select a vehicle</h2></div><small>{{ availableVehicles.length }} cars available</small></header>
-                <div class="vehicle-options">
-                  @for (vehicle of availableVehicles; track vehicle.id) {
-                    <button type="button" [class.selected]="selectedVehicle().id === vehicle.id" (click)="selectVehicle(vehicle)">
-                      <div class="mini-car" [style.background]="vehicle.color"><img [src]="vehicle.imageUrl" [alt]="vehicle.name"></div>
-                      <span><b>{{ vehicle.year }} {{ vehicle.name }}</b><small>{{ vehicle.trim }} · {{ vehicle.rating ? '★ ' + vehicle.rating + ' (' + vehicle.reviewCount + ')' : 'New listing' }}</small></span>
-                      <strong>{{ vehicle.price | currency:'USD':'symbol':'1.2-2' }}<small>/day</small></strong>
-                      <mat-icon class="check">check_circle</mat-icon>
-                    </button>
-                  }
-                </div>
-              </section>
-
-              <section class="panel dates-panel">
-                <header><div><span>Step 2</span><h2>Choose your rental dates</h2></div><small><mat-icon>event_available</mat-icon>Instant confirmation</small></header>
-                <mat-form-field appearance="outline" class="date-range">
-                  <mat-label>Pick-up and return dates</mat-label>
-                  <mat-date-range-input [rangePicker]="picker" [min]="minDate">
-                    <input matStartDate placeholder="Pick-up date" [value]="startDate()" (dateChange)="startDate.set($event.value)">
-                    <input matEndDate placeholder="Return date" [value]="endDate()" (dateChange)="endDate.set($event.value)">
-                  </mat-date-range-input>
-                  <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-                  <mat-date-range-picker #picker></mat-date-range-picker>
-                </mat-form-field>
-                <div class="date-cards">
-                  <div><span><mat-icon>north_east</mat-icon></span><p><small>Pick-up</small><b>{{ startDate() ? (startDate() | date:'EEE, MMM d') : 'Select a date' }}</b><em>10:00 AM · Downtown Manila</em></p></div>
-                  <mat-icon>arrow_forward</mat-icon>
-                  <div><span><mat-icon>south_west</mat-icon></span><p><small>Return</small><b>{{ endDate() ? (endDate() | date:'EEE, MMM d') : 'Select a date' }}</b><em>10:00 AM · Same location</em></p></div>
-                </div>
-              </section>
-
-              <section class="panel details-panel">
-                <header><div><span>Step 3</span><h2>Your details</h2></div><small>All fields are required</small></header>
-                <form [formGroup]="customerForm"><div class="field-row"><mat-form-field appearance="outline"><mat-label>First name</mat-label><input matInput formControlName="firstName" autocomplete="given-name"></mat-form-field><mat-form-field appearance="outline"><mat-label>Last name</mat-label><input matInput formControlName="lastName" autocomplete="family-name"></mat-form-field></div><mat-form-field appearance="outline"><mat-label>Email address</mat-label><mat-icon matPrefix>mail_outline</mat-icon><input matInput type="email" formControlName="email" autocomplete="email"></mat-form-field><mat-form-field appearance="outline"><mat-label>Mobile number</mat-label><mat-icon matPrefix>phone</mat-icon><input matInput formControlName="phone" autocomplete="tel" placeholder="+63 900 000 0000"></mat-form-field></form>
-              </section>
-            </div>
-
-            <aside class="summary-wrap">
-              <section class="panel summary">
-                <h2>Your booking</h2>
-                <div class="selected-car" [style.background]="selectedVehicle().color"><span>{{ selectedVehicle().category }}</span><img [src]="selectedVehicle().imageUrl" [alt]="selectedVehicle().year + ' ' + selectedVehicle().name"></div>
-                <div class="car-title"><div><h3>{{ selectedVehicle().year }} {{ selectedVehicle().name }}</h3><span>{{ selectedVehicle().trim }} · {{ selectedVehicle().trips }} trips</span></div><b>{{ selectedVehicle().price | currency:'USD':'symbol':'1.2-2' }}<small>/day</small></b></div>
-                <div class="listing-rating"><mat-icon>star</mat-icon><b>{{ selectedVehicle().rating ?? 'New' }}</b><span>{{ selectedVehicle().reviewCount ? selectedVehicle().reviewCount + ' ratings' : 'No ratings yet' }}</span></div>
-                <div class="spec-list"><span><mat-icon>airline_seat_recline_normal</mat-icon>{{ selectedVehicle().seats }} seats</span><span><mat-icon>speed</mat-icon>{{ selectedVehicle().mpg }} MPG</span><span><mat-icon>settings</mat-icon>{{ selectedVehicle().transmission }}</span><span><mat-icon>local_gas_station</mat-icon>{{ selectedVehicle().fuel }}</span></div>
-                <div class="guest-review"><mat-icon>format_quote</mat-icon><p>{{ selectedVehicle().review }}<small>{{ selectedVehicle().reviewer ? '— ' + selectedVehicle().reviewer : 'New on Turo' }}</small></p></div>
-                <div class="coverage"><mat-checkbox [checked]="coverage()" (change)="coverage.set($event.checked)"><b>Premium coverage</b><small>Reduce your damage excess to $0</small></mat-checkbox><strong>+$18/day</strong></div>
-                <div class="price-lines"><p><span>Rental rate</span><b>{{ selectedVehicle().price | currency }} × {{ rentalDays() || 0 }} days</b></p><p><span>Premium coverage</span><b>{{ coveragePrice() | currency }}</b></p><p><span>Taxes & fees</span><b>{{ taxes() | currency }}</b></p></div>
-                <div class="total"><span>Total<small>{{ rentalDays() ? rentalDays() + ' rental days' : 'Select dates to calculate' }}</small></span><strong>{{ total() | currency }}</strong></div>
-                <button mat-flat-button class="confirm" [disabled]="!canBook()" (click)="confirmBooking()">Confirm booking <mat-icon>arrow_forward</mat-icon></button>
-                @if (!datesComplete()) { <p class="hint"><mat-icon>info_outline</mat-icon>Select pick-up and return dates to continue.</p> }
-                <div class="assurances"><span><mat-icon>verified_user</mat-icon>Secure checkout</span><span><mat-icon>event_busy</mat-icon>Free changes up to 24h</span></div>
-              </section>
-            </aside>
-          </div>
-        </main>
-      }
-      <footer>© 2026 Bill’s Premiere <span>·</span> Rental terms <span>·</span> Privacy <span>·</span> Need help? +63 2 8123 4567</footer>
-    </div>
-  `,
+  templateUrl: './customer-booking.component.html',
   styleUrl: './customer-booking.component.scss',
 })
-export class CustomerBookingComponent {
+export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   private readonly data = inject(DataService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly snack = inject(MatSnackBar);
-  readonly availableVehicles = this.data.vehicles().filter(vehicle => vehicle.status === 'Available');
+  private readonly allAvailableVehicles = this.data.vehicles().filter(vehicle => vehicle.status === 'Available');
+  private readonly requestedLocation = this.route.snapshot.queryParamMap.get('location') ?? '';
+  private readonly requestedCategory = this.route.snapshot.queryParamMap.get('category') ?? '';
+  private readonly matchingVehicles = this.allAvailableVehicles.filter(vehicle =>
+    (!this.requestedCategory || vehicle.category === this.requestedCategory) &&
+    (!this.requestedLocation || vehicle.carLocation === this.requestedLocation || vehicle.pickupLocations?.includes(this.requestedLocation))
+  );
+  readonly availableVehicles = this.matchingVehicles.length ? this.matchingVehicles : this.allAvailableVehicles;
   readonly minDate = new Date();
   readonly selectedVehicle = signal<Vehicle>(this.availableVehicles[0]);
   readonly startDate = signal<Date | null>(null);
   readonly endDate = signal<Date | null>(null);
+  readonly startTime = signal('10:00');
+  readonly endTime = signal('10:00');
+  readonly pickupLocation = signal(this.requestedLocation);
+  readonly vehicleDetailQueryParams = computed<Params>(() => {
+    const params: Params = {};
+    const location = this.pickupLocation();
+    const start = this.formatDateTime(this.startDate(), this.startTime());
+    const end = this.formatDateTime(this.endDate(), this.endTime());
+    if (location) params['location'] = location;
+    if (start) params['start'] = start;
+    if (end) params['end'] = end;
+    if (this.requestedCategory) params['category'] = this.requestedCategory;
+    return params;
+  });
   readonly coverage = signal(true);
+  readonly paymentReady = signal(false);
+  readonly cardNumberComplete = signal(false);
+  readonly cardExpiryComplete = signal(false);
+  readonly cardCvcComplete = signal(false);
+  readonly cardComplete = computed(() => this.cardNumberComplete() && this.cardExpiryComplete() && this.cardCvcComplete());
+  readonly paymentError = signal('');
+  readonly unavailableVehicleIds = signal<Set<number>>(new Set());
+  readonly checkingAvailability = signal(false);
+  readonly availabilityChecked = signal(false);
+  readonly availabilityError = signal('');
+  readonly submitting = signal(false);
   readonly confirmationId = signal('');
   readonly customerForm = new FormGroup({
     firstName: new FormControl('', { nonNullable: true, validators: Validators.required }),
@@ -116,30 +94,275 @@ export class CustomerBookingComponent {
   });
   readonly formValid = signal(this.customerForm.valid);
   readonly rentalDays = computed(() => {
-    const start = this.startDate(); const end = this.endDate();
+    const start = this.combinedDateTime(this.startDate(), this.startTime());
+    const end = this.combinedDateTime(this.endDate(), this.endTime());
     return start && end && end > start ? Math.ceil((end.getTime() - start.getTime()) / 86_400_000) : 0;
   });
   readonly datesComplete = computed(() => this.rentalDays() > 0);
+  readonly dateError = computed(() => {
+    const start = this.combinedDateTime(this.startDate(), this.startTime());
+    const end = this.combinedDateTime(this.endDate(), this.endTime());
+    if ((this.startDate() && !start) || (this.endDate() && !end)) return 'Select both a pick-up time and a return time.';
+    if ((start && !end) || (!start && end)) return 'Select both a pick-up date and a return date.';
+    const currentMinute = new Date();
+    currentMinute.setSeconds(0, 0);
+    if (start && start < currentMinute) return 'Pick-up date and time cannot be in the past.';
+    if (start && end && end <= start) return 'Return date and time must be after the pick-up date and time.';
+    return '';
+  });
   readonly basePrice = computed(() => this.selectedVehicle().price * this.rentalDays());
   readonly coveragePrice = computed(() => this.coverage() ? 18 * this.rentalDays() : 0);
   readonly taxes = computed(() => (this.basePrice() + this.coveragePrice()) * 0.08);
   readonly total = computed(() => this.basePrice() + this.coveragePrice() + this.taxes());
-  readonly canBook = computed(() => this.datesComplete() && this.formValid());
+  readonly selectedVehicleAvailable = computed(() => !this.unavailableVehicleIds().has(this.selectedVehicle().id));
+  readonly availableVehicleCount = computed(() => this.availableVehicles.filter(vehicle => this.isVehicleAvailable(vehicle)).length);
+  readonly canBook = computed(() => this.datesComplete() && this.availabilityChecked() && this.selectedVehicleAvailable() && this.formValid() && this.paymentReady() && this.cardComplete());
+  private stripe: StripeInstance | null = null;
+  private cardNumberElement: StripeCardElement | null = null;
+  private cardExpiryElement: StripeCardElement | null = null;
+  private cardCvcElement: StripeCardElement | null = null;
+  private paidPaymentIntentId = '';
+  private availabilityRequest = 0;
 
   constructor() {
     const requestedId = Number(this.route.snapshot.queryParamMap.get('vehicle'));
     const requested = this.availableVehicles.find(vehicle => vehicle.id === requestedId);
     if (requested) this.selectedVehicle.set(requested);
+    const parseDateTime = (value: string | null): { date: Date; time: string } | null => {
+      const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}:\d{2}))?/);
+      if (!match) return null;
+      const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      return Number.isNaN(parsed.getTime()) ? null : { date: parsed, time: match[4] ?? '10:00' };
+    };
+    const requestedStart = parseDateTime(this.route.snapshot.queryParamMap.get('start'));
+    const requestedEnd = parseDateTime(this.route.snapshot.queryParamMap.get('end'));
+    const today = new Date(this.minDate.getFullYear(), this.minDate.getMonth(), this.minDate.getDate());
+    if (requestedStart && requestedStart.date >= today) {
+      this.startDate.set(requestedStart.date);
+      this.startTime.set(requestedStart.time);
+    }
+    if (requestedEnd && requestedStart && this.combinedDateTime(requestedEnd.date, requestedEnd.time)! > this.combinedDateTime(requestedStart.date, requestedStart.time)!) {
+      this.endDate.set(requestedEnd.date);
+      this.endTime.set(requestedEnd.time);
+    }
+    if (!this.pickupLocation()) this.pickupLocation.set(this.defaultPickupLocation(this.selectedVehicle()));
     this.customerForm.statusChanges.subscribe(() => this.formValid.set(this.customerForm.valid));
   }
 
-  selectVehicle(vehicle: Vehicle): void { this.selectedVehicle.set(vehicle); }
-  confirmBooking(): void {
+  ngAfterViewInit(): void {
+    this.initializePayment();
+    void this.refreshAvailability();
+  }
+
+  ngOnDestroy(): void {
+    this.cardNumberElement?.destroy();
+    this.cardExpiryElement?.destroy();
+    this.cardCvcElement?.destroy();
+  }
+
+  selectVehicle(vehicle: Vehicle): void {
+    if (!this.isVehicleAvailable(vehicle)) return;
+    this.selectedVehicle.set(vehicle);
+    if (!this.requestedLocation) this.pickupLocation.set(this.defaultPickupLocation(vehicle));
+  }
+  updateStartDate(date: Date | null): void {
+    this.startDate.set(date);
+    this.syncBookingDatesInUrl();
+    void this.refreshAvailability();
+  }
+  updateEndDate(date: Date | null): void {
+    this.endDate.set(date);
+    this.syncBookingDatesInUrl();
+    void this.refreshAvailability();
+  }
+  updateStartTime(time: string): void {
+    this.startTime.set(time);
+    this.syncBookingDatesInUrl();
+    void this.refreshAvailability();
+  }
+  updateEndTime(time: string): void {
+    this.endTime.set(time);
+    this.syncBookingDatesInUrl();
+    void this.refreshAvailability();
+  }
+  timeLabel(time: string): string {
+    const [hours, minutes] = time.split(':').map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return time;
+    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(2000, 0, 1, hours, minutes));
+  }
+  isVehicleAvailable(vehicle: Vehicle): boolean {
+    return !this.unavailableVehicleIds().has(vehicle.id);
+  }
+  async confirmBooking(): Promise<void> {
     const start = this.startDate(); const end = this.endDate();
     if (!start || !end || !this.canBook()) { this.snack.open('Complete your dates and contact details first.', 'Dismiss', { duration: 3000 }); return; }
+    const startDate = this.formatDateTime(start, this.startTime())!;
+    const endDate = this.formatDateTime(end, this.endTime())!;
     const customer = `${this.customerForm.controls.firstName.value} ${this.customerForm.controls.lastName.value}`;
-    this.confirmationId.set(this.data.createBooking(customer, this.selectedVehicle(), start, end, this.total()));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    this.submitting.set(true);
+    this.paymentError.set('');
+    try {
+      if (!this.stripe || !this.cardNumberElement) throw new Error('The secure payment form is not ready.');
+      if (!this.paidPaymentIntentId) {
+        const intent = await this.data.createPaymentIntent({
+          vehicleId: this.selectedVehicle().id,
+          startDate,
+          endDate,
+          coverage: this.coverage(),
+          email: this.customerForm.controls.email.value,
+        });
+        const payment = await this.stripe.confirmCardPayment(intent.clientSecret, {
+          payment_method: {
+            card: this.cardNumberElement,
+            billing_details: {
+              name: customer,
+              email: this.customerForm.controls.email.value,
+              phone: this.customerForm.controls.phone.value,
+            },
+          },
+        });
+        if (payment.error) throw new Error(payment.error.message || 'Payment was declined.');
+        if (payment.paymentIntent?.status !== 'succeeded') throw new Error('Payment did not complete.');
+        this.paidPaymentIntentId = payment.paymentIntent.id;
+      }
+      const booking = await this.data.createBooking({
+        customer,
+        email: this.customerForm.controls.email.value,
+        phone: this.customerForm.controls.phone.value,
+        vehicleId: this.selectedVehicle().id,
+        startDate,
+        endDate,
+        pickupLocation: this.pickupLocation(),
+        coverage: this.coverage(),
+        paymentIntentId: this.paidPaymentIntentId,
+      });
+      this.confirmationId.set(booking.id);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Payment or booking could not be completed.';
+      this.paymentError.set(message);
+      this.snack.open(message, 'Dismiss', { duration: 4500 });
+    } finally {
+      this.submitting.set(false);
+    }
   }
-  bookAnother(): void { this.confirmationId.set(''); this.startDate.set(null); this.endDate.set(null); this.customerForm.reset(); }
+  bookAnother(): void {
+    this.confirmationId.set('');
+    this.startDate.set(null);
+    this.endDate.set(null);
+    this.startTime.set('10:00');
+    this.endTime.set('10:00');
+    this.customerForm.reset();
+    this.paidPaymentIntentId = '';
+    this.cardNumberElement?.clear();
+    this.cardExpiryElement?.clear();
+    this.cardCvcElement?.clear();
+  }
+  private defaultPickupLocation(vehicle: Vehicle): string {
+    return vehicle.carLocation || vehicle.pickupLocations?.[0] || 'Location confirmed after booking';
+  }
+  private syncBookingDatesInUrl(): void {
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {
+        start: this.formatDateTime(this.startDate(), this.startTime()),
+        end: this.formatDateTime(this.endDate(), this.endTime()),
+      },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+  private formatDate(date: Date | null): string | null {
+    if (!date) return null;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  private formatDateTime(date: Date | null, time: string): string | null {
+    const datePart = this.formatDate(date);
+    return datePart && time ? `${datePart}T${time}` : null;
+  }
+  private combinedDateTime(date: Date | null, time: string): Date | null {
+    if (!date || !/^\d{2}:\d{2}$/.test(time)) return null;
+    const [hours, minutes] = time.split(':').map(Number);
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes);
+  }
+  private async refreshAvailability(): Promise<void> {
+    const request = ++this.availabilityRequest;
+    const start = this.formatDateTime(this.startDate(), this.startTime());
+    const end = this.formatDateTime(this.endDate(), this.endTime());
+    this.availabilityError.set('');
+    this.availabilityChecked.set(false);
+    if (!start || !end || this.dateError()) {
+      this.unavailableVehicleIds.set(new Set());
+      this.checkingAvailability.set(false);
+      return;
+    }
+    this.checkingAvailability.set(true);
+    try {
+      const result = await this.data.checkAvailability(start, end);
+      if (request !== this.availabilityRequest) return;
+      this.unavailableVehicleIds.set(new Set(result.unavailableVehicleIds));
+      this.availabilityChecked.set(true);
+    } catch (error) {
+      if (request !== this.availabilityRequest) return;
+      this.unavailableVehicleIds.set(new Set());
+      this.availabilityError.set(this.data.errorMessage(error));
+    } finally {
+      if (request === this.availabilityRequest) this.checkingAvailability.set(false);
+    }
+  }
+  private async initializePayment(): Promise<void> {
+    const publishableKey = environment.stripe.publishableKey;
+    if (!publishableKey) {
+      this.paymentError.set('Payment is not configured yet. Add Stripe test keys and redeploy the backend.');
+      return;
+    }
+    try {
+      await this.loadStripeJs();
+      if (!window.Stripe) throw new Error('Stripe.js did not load.');
+      this.stripe = window.Stripe(publishableKey);
+      const elements = this.stripe.elements();
+      const elementOptions = {
+        style: {
+          base: { color: '#162236', fontSize: '16px', fontFamily: 'Inter, Arial, sans-serif', '::placeholder': { color: '#94a3b8' } },
+          invalid: { color: '#dc2626' },
+        },
+      };
+      this.cardNumberElement = elements.create('cardNumber', { ...elementOptions, showIcon: true });
+      this.cardExpiryElement = elements.create('cardExpiry', elementOptions);
+      this.cardCvcElement = elements.create('cardCvc', elementOptions);
+      this.cardNumberElement.mount('#card-number-element');
+      this.cardExpiryElement.mount('#card-expiry-element');
+      this.cardCvcElement.mount('#card-cvc-element');
+      this.watchCardElement(this.cardNumberElement, this.cardNumberComplete);
+      this.watchCardElement(this.cardExpiryElement, this.cardExpiryComplete);
+      this.watchCardElement(this.cardCvcElement, this.cardCvcComplete);
+      this.paymentReady.set(true);
+    } catch (error) {
+      this.paymentError.set(error instanceof Error ? error.message : 'The secure payment form could not load.');
+    }
+  }
+  private watchCardElement(element: StripeCardElement, completeness: { set(value: boolean): void }): void {
+    element.on('change', change => {
+      completeness.set(change.complete);
+      this.paymentError.set(change.error?.message ?? '');
+    });
+  }
+  private loadStripeJs(): Promise<void> {
+    if (window.Stripe) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const existing = document.getElementById('stripe-js') as HTMLScriptElement | null;
+      const script = existing ?? document.createElement('script');
+      script.addEventListener('load', () => resolve(), { once: true });
+      script.addEventListener('error', () => reject(new Error('The secure payment form could not load.')), { once: true });
+      if (!existing) {
+        script.id = 'stripe-js';
+        script.src = 'https://js.stripe.com/v3/';
+        script.async = true;
+        document.head.appendChild(script);
+      }
+    });
+  }
 }

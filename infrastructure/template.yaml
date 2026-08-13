@@ -1,0 +1,304 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Bill's Premiere car-rental Cognito, API, Lambda, and DynamoDB backend
+
+Parameters:
+  AllowedOrigins:
+    Type: CommaDelimitedList
+    Default: http://localhost:4200
+    Description: Frontend origins allowed to call the API and upload vehicle photos
+  StripePublishableKey:
+    Type: String
+    Default: ''
+    Description: Stripe publishable key (use a pk_test key while testing)
+  StripeSecretKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Stripe secret key (use an sk_test key while testing)
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures: [arm64]
+    Timeout: 15
+    MemorySize: 256
+    Environment:
+      Variables:
+        VEHICLES_TABLE: !Ref VehiclesTable
+        BOOKINGS_TABLE: !Ref BookingsTable
+        USER_POOL_ID: !Ref UserPool
+        PHOTOS_BUCKET: !Ref VehiclePhotosBucket
+        ALLOWED_ORIGINS: !Join [',', !Ref AllowedOrigins]
+        STRIPE_SECRET_KEY: !Ref StripeSecretKey
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: car-rental-staff
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailSubject: Your Bill's Premiere staff account
+          EmailMessage: "Your username is {username} and temporary password is {####}. Sign in to set a permanent password."
+          SMSMessage: "Your username is {username} and temporary password is {####}."
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 7
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      Schema:
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: role
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: '5'
+            MaxLength: '20'
+      UserPoolTags:
+        Application: car-rental
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: car-rental-web
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  VehiclesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: car-rental-vehicles
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: N
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Application
+          Value: car-rental
+
+  BookingsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: car-rental-bookings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Application
+          Value: car-rental
+
+  VehiclePhotosBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: !Ref AllowedOrigins
+            AllowedMethods:
+              - PUT
+            AllowedHeaders:
+              - '*'
+            ExposedHeaders:
+              - ETag
+            MaxAge: 300
+      Tags:
+        - Key: Application
+          Value: car-rental
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: car-rental-api
+      StageName: v1
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+
+  BackendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: car-rental-backend
+      CodeUri: backend/
+      Handler: app.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VehiclesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BookingsTable
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:TransactWriteItems
+              Resource:
+                - !GetAtt VehiclesTable.Arn
+                - !GetAtt BookingsTable.Arn
+        - S3CrudPolicy:
+            BucketName: !Ref VehiclePhotosBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:ListUsers
+                - cognito-idp:AdminGetUser
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminUpdateUserAttributes
+                - cognito-idp:AdminEnableUser
+                - cognito-idp:AdminDisableUser
+                - cognito-idp:AdminDeleteUser
+              Resource: !GetAtt UserPool.Arn
+      Events:
+        GetVehicles:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /vehicles
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        GetAvailability:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /availability
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        CreateVehicle:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /vehicles, Method: POST }
+        UpdateVehicle:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: '/vehicles/{id}', Method: PUT }
+        DeleteVehicle:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: '/vehicles/{id}', Method: DELETE }
+        CreateVehicleReview:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: '/vehicles/{id}/reviews'
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        CreatePhotoUpload:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /uploads, Method: POST }
+        GetPhoto:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: '/photos/{key}'
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        CreateBooking:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /bookings
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        CreatePaymentIntent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /payments/intents
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        GetBookings:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /bookings, Method: GET }
+        UpdateBooking:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: '/bookings/{id}', Method: PUT }
+        GetUsers:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /users, Method: GET }
+        CreateUser:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /users, Method: POST }
+        UpdateUser:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: '/users/{id}', Method: PUT }
+        DeleteUser:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: '/users/{id}', Method: DELETE }
+
+Outputs:
+  ApiUrl:
+    Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/v1
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  Region:
+    Value: !Ref AWS::Region
+  StripePublishableKey:
+    Value: !Ref StripePublishableKey
+  VehiclePhotosBucketName:
+    Value: !Ref VehiclePhotosBucket

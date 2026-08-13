@@ -1,0 +1,11 @@
+{
+  "httpMethod": "GET",
+  "resource": "/users",
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "custom:role": "Administrator"
+      }
+    }
+  }
+}

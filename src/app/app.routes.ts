@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard } from './core/auth.guard';
+import { adminGuard, authGuard, guestGuard } from './core/auth.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', loadComponent: () => import('./features/customer/landing.component').then(m => m.LandingComponent) },
@@ -11,8 +11,9 @@ export const routes: Routes = [
     children: [
       { path: 'dashboard', loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) },
       { path: 'vehicles', loadComponent: () => import('./features/vehicles/vehicles.component').then(m => m.VehiclesComponent) },
+      { path: 'vehicles/:id', data: { staff: true }, loadComponent: () => import('./features/customer/vehicle-detail.component').then(m => m.VehicleDetailComponent) },
       { path: 'bookings', loadComponent: () => import('./features/bookings/bookings.component').then(m => m.BookingsComponent) },
-      { path: 'users', loadComponent: () => import('./features/users/users.component').then(m => m.UsersComponent) },
+      { path: 'users', canActivate: [adminGuard], loadComponent: () => import('./features/users/users.component').then(m => m.UsersComponent) },
     ],
   },
   { path: '**', redirectTo: '' },

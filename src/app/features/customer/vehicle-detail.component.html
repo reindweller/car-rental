@@ -1,0 +1,112 @@
+<div class="detail-page" [class.staff-mode]="staffMode">
+  <header class="site-header"><a class="brand" routerLink="/" aria-label="Bill's Premiere home"><span><img src="assets/bills-premiere-logo.png" alt=""></span><b>Bill’s Premiere</b></a><nav><a routerLink="/">Home</a><a routerLink="/book">Book a car</a></nav><a mat-flat-button [routerLink]="['/book']" [queryParams]="bookingQueryParams">Reserve this car</a></header>
+
+  <main>
+    @if (staffMode) { <div class="staff-context"><mat-icon>admin_panel_settings</mat-icon><span>Fleet management</span><i></i><b>Authorized staff view</b></div> }
+    <a class="back" [routerLink]="staffMode ? '/vehicles' : '/'"><mat-icon>arrow_back</mat-icon>{{ staffMode ? 'Back to Vehicle fleet' : 'Back to all vehicles' }}</a>
+    <section class="hero">
+      <div class="photo">
+        <img [src]="selectedPhoto()" [alt]="vehicle.year + ' ' + vehicle.name">
+        <span><mat-icon>verified</mat-icon>{{ vehicle.status }}</span>
+        @if (photos.length > 1) {
+          <div class="photo-thumbnails">
+            @for (photo of photos; track photo; let index = $index) {
+              <button type="button" [class.active]="selectedPhoto() === photo" (click)="selectedPhoto.set(photo)" [attr.aria-label]="'Show vehicle photo ' + (index + 1)">
+                <img [src]="photo" alt="">
+              </button>
+            }
+          </div>
+        }
+      </div>
+      <div class="intro">
+        <span class="category">{{ vehicle.category }}</span>
+        <h1>{{ vehicle.name }}</h1><p class="year">{{ vehicle.year }} {{ vehicle.trim }}</p>
+        <div class="rating">@if (vehicle.rating) {<mat-icon>star</mat-icon><b>{{ vehicle.rating }}</b><span>({{ vehicle.reviewCount }} ratings)</span><i></i><span>{{ vehicle.trips }} trips</span>} @else {<span>New listing · Be the first to review</span>}</div>
+        <div class="specs"><span><mat-icon>airline_seat_recline_normal</mat-icon><b>{{ vehicle.seats }}</b><small>Seats</small></span><span><mat-icon>local_gas_station</mat-icon><b>{{ vehicle.fuel }}</b><small>{{ vehicle.mpg }} MPG</small></span><span><mat-icon>settings</mat-icon><b>{{ vehicle.transmission }}</b><small>Transmission</small></span></div>
+        <div class="price"><span>Daily rental rate<small>Taxes and optional extras calculated at booking</small></span><strong>{{ vehicle.price | currency:'USD':'symbol':'1.2-2' }}<small>/ day</small></strong></div>
+        @if (staffMode) { <a mat-flat-button class="book" routerLink="/vehicles"><mat-icon>directions_car</mat-icon>Return to Vehicle fleet</a> } @else { <a mat-flat-button class="book" [routerLink]="['/book']" [queryParams]="bookingQueryParams">Check dates & book <mat-icon>arrow_forward</mat-icon></a> }
+      </div>
+    </section>
+
+    <div class="content-grid">
+      <div class="content-main">
+        <section class="pickup-map" id="pickup-locations">
+          @if (mapUrl) {
+            <iframe class="map-frame" [src]="mapUrl" title="Map of the vehicle pickup and return location" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+          } @else {
+            <div class="map-placeholder"><mat-icon>map</mat-icon><span>Set the car location to display its map.</span></div>
+          }
+          <div class="pickup-card">
+            <header><span><mat-icon>location_on</mat-icon></span><div><h2>Vehicle pickup and return location</h2><p>Choose where to collect this vehicle.</p></div></header>
+            <div class="pickup-groups">
+            <div class="pickup-group">
+              <h3>Pick up at car location</h3>
+              @if (vehicle.carLocation) {
+                <div class="location-item primary-location"><mat-icon>garage</mat-icon><span>{{ vehicle.carLocation }}</span></div>
+                <a class="map-link" [href]="directionsUrl" target="_blank" rel="noopener noreferrer">Open in Google Maps <mat-icon>open_in_new</mat-icon></a>
+              } @else {
+                <p class="location-empty">Car location has not been provided.</p>
+              }
+            </div>
+            <div class="pickup-group">
+              <h3>Pick up locations</h3>
+              @if (vehicle.pickupLocations?.length) {
+                <div class="location-list">
+                  @for (location of vehicle.pickupLocations; track location) {
+                    <div class="location-item"><mat-icon>place</mat-icon><span>{{ location }}</span></div>
+                  }
+                </div>
+              } @else {
+                <p class="location-empty">No additional pickup locations are available.</p>
+              }
+            </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="features"><header><span><mat-icon>auto_awesome</mat-icon></span><div><h2>Vehicle features</h2><p>Everything included with this {{ vehicle.name }}.</p></div></header><div class="feature-groups">@for (group of vehicle.features; track group.group) {<div><h3>{{ group.group }}</h3><ul>@for (feature of group.items; track feature) {<li><mat-icon>check</mat-icon>{{ feature }}</li>}</ul></div>}</div></section>
+
+        <section class="panel" id="included"><header><span><mat-icon>inventory_2</mat-icon></span><div><h2>Included in the price</h2><p>Convenience and peace of mind come standard.</p></div></header><div class="included-grid">@for (item of vehicle.included; track item) {<div><mat-icon>check_circle</mat-icon><span>{{ item }}</span></div>}</div></section>
+
+        <section class="panel" id="rules"><header><span><mat-icon>policy</mat-icon></span><div><h2>Rules of the road</h2><p>Please follow these guidelines throughout your trip.</p></div></header>@if (vehicle.rules?.length) {<div class="rules-list">@for (rule of vehicle.rules; track rule) {<div><mat-icon>rule</mat-icon><span>{{ rule }}</span></div>}</div>} @else {<div class="empty"><mat-icon>rule</mat-icon><div><b>No additional rules listed</b><span>Drive safely and follow all local traffic laws.</span></div></div>}</section>
+
+        <section class="panel" id="reviews">
+          <header><span><mat-icon>reviews</mat-icon></span><div><h2>Ratings and reviews</h2><p>Feedback from verified trips.</p></div></header>
+          <div class="review-summary">
+            <div><strong>{{ vehicle.rating ?? 'New' }}</strong>@if (vehicle.rating) {<span>{{ reviewStars(Math.round(vehicle.rating)) }}</span><small>Based on {{ vehicle.reviewCount }} ratings</small>} @else {<small>No ratings yet</small>}</div>
+            <div class="bars">@for (row of [5,4,3,2,1]; track row) {<span><b>{{ row }}</b><mat-icon>star</mat-icon><i><em [style.width.%]="reviewPercentage(row)"></em></i><small>{{ reviewPercentage(row) }}%</small></span>}</div>
+          </div>
+
+          @if (!staffMode) {
+            <div class="review-action">
+              <div><b>How was your rental?</b><span>Completed a trip with this vehicle? Share your experience.</span></div>
+              @if (!reviewOpen()) { <button mat-stroked-button type="button" (click)="openReviewForm()"><mat-icon>rate_review</mat-icon>Write a review</button> }
+            </div>
+            @if (reviewSuccess()) { <p class="review-message success"><mat-icon>check_circle</mat-icon>{{ reviewSuccess() }}</p> }
+            @if (reviewOpen()) {
+              <form class="review-form" [formGroup]="reviewForm" (ngSubmit)="submitReview()">
+                <div class="review-verification">
+                  <mat-form-field appearance="outline"><mat-label>Booking ID</mat-label><input matInput formControlName="bookingId" placeholder="BK-1234ABCD" autocomplete="off"><mat-hint>Found in your booking confirmation</mat-hint></mat-form-field>
+                  <mat-form-field appearance="outline"><mat-label>Booking email</mat-label><input matInput type="email" formControlName="email" autocomplete="email"></mat-form-field>
+                </div>
+                <fieldset class="star-picker"><legend>Your rating</legend><div>@for (star of [1,2,3,4,5]; track star) {<button type="button" (mouseenter)="hoveredRating.set(star)" (mouseleave)="hoveredRating.set(0)" (focus)="hoveredRating.set(star)" (blur)="hoveredRating.set(0)" (click)="reviewForm.controls.rating.setValue(star)" [class.selected]="starIsFilled(star)" [attr.aria-label]="star + ' star rating'" [attr.aria-pressed]="reviewForm.controls.rating.value === star"><mat-icon>{{ starIsFilled(star) ? 'star' : 'star_border' }}</mat-icon></button>}<span>{{ reviewForm.controls.rating.value ? reviewForm.controls.rating.value + ' out of 5' : 'Select a rating' }}</span></div></fieldset>
+                <mat-form-field appearance="outline" class="review-body"><mat-label>Your review</mat-label><textarea matInput rows="5" formControlName="body" placeholder="Tell future renters about the vehicle and your experience"></textarea><mat-hint align="end">{{ reviewForm.controls.body.value.length }} / 1000</mat-hint></mat-form-field>
+                @if (reviewError()) { <p class="review-message error"><mat-icon>error</mat-icon>{{ reviewError() }}</p> }
+                <footer><button mat-button type="button" (click)="reviewOpen.set(false)" [disabled]="reviewSubmitting()">Cancel</button><button mat-flat-button type="submit" [disabled]="reviewSubmitting()">@if (reviewSubmitting()) { Publishing... } @else { Publish review }</button></footer>
+              </form>
+            }
+          }
+
+          @if (vehicle.reviews.length) {
+            <div class="reviews">@for (review of vehicle.reviews; track review.id ?? review.author + review.date) {<article><div class="review-avatar">{{ initials(review.author) }}</div><div><header><span><b>{{ review.author }}</b><small>{{ review.date }}</small></span><em [attr.aria-label]="review.rating + ' out of 5 stars'">{{ reviewStars(review.rating) }}</em></header><p>{{ review.body }}</p></div></article>}</div>
+          } @else {
+            <div class="empty"><mat-icon>rate_review</mat-icon><div><b>Be the first to review this vehicle</b><span>Book a trip and share your experience.</span></div></div>
+          }
+        </section>
+      </div>
+
+      <aside><div class="sticky-card">@if (staffMode) { <h3>Fleet record</h3><p>Internal staff view of this customer listing.</p><div><span>Daily rate</span><b>{{ vehicle.price | currency:'USD':'symbol':'1.2-2' }} <small>/ day</small></b></div><a mat-flat-button routerLink="/vehicles">Back to fleet</a><span class="assurance"><mat-icon>verified_user</mat-icon>Authorized staff view</span><span class="assurance"><mat-icon>info</mat-icon>{{ vehicle.status }} status</span> } @else { <h3>Ready to drive?</h3><p>Choose your dates to see the full trip price.</p><div><span>From</span><b>{{ vehicle.price | currency:'USD':'symbol':'1.2-2' }} <small>/ day</small></b></div><a mat-flat-button [routerLink]="['/book']" [queryParams]="bookingQueryParams">Book this vehicle</a><span class="assurance"><mat-icon>event_available</mat-icon>Free changes up to 24 hours before pickup</span><span class="assurance"><mat-icon>support_agent</mat-icon>24/7 customer support</span> }</div></aside>
+    </div>
+  </main>
+  @if (!staffMode) { <footer>© 2026 Bill’s Premiere · Better cars. Better journeys.</footer> }
+</div>

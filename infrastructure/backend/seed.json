@@ -1,0 +1,42 @@
+[
+  {
+    "id": 3297396, "name": "Buick Enclave", "year": 2022, "trim": "Premium", "category": "Premium SUV", "seats": 7, "mpg": 22, "fuel": "Gas", "transmission": "Automatic", "price": 50.76,
+    "rating": 5, "reviewCount": 47, "trips": 50, "reviewer": "Je", "review": "Amazing host. The rental was easy and communication was wonderful.",
+    "imageUrl": "https://images.turo.com/media/vehicle/images/u1h9bSozTC6lzSVNbpY9KA.heic", "turoUrl": "https://turo.com/us/en/suv-rental/united-states/gibsonton-fl/buick/enclave/3297396",
+    "features": [{"group": "Safety", "items": ["Backup camera", "Blind spot warning", "Lane keeping assist"]}, {"group": "Connectivity", "items": ["Bluetooth", "USB charger"]}],
+    "included": ["24/7 roadside assistance", "24/7 customer support", "Additional drivers at no extra charge"], "extras": [], "reviews": [],
+    "status": "Available", "color": "#e7eef7", "plate": "Turo #3297396", "emoji": "SUV"
+  },
+  {
+    "id": 3269786, "name": "Toyota Crown", "year": 2026, "trim": "XLE", "category": "Hybrid Sedan", "seats": 5, "mpg": 42, "fuel": "Hybrid", "transmission": "Automatic", "price": 55.61,
+    "rating": 5, "reviewCount": 53, "trips": 56, "reviewer": "Cherise Annie", "review": "Clean, comfortable, and definitely a gas saver.",
+    "imageUrl": "https://images.turo.com/media/vehicle/images/WOIrGvc0Sb6nD5guKcGivQ.heic", "turoUrl": "https://turo.com/us/en/car-rental/united-states/gibsonton-fl/toyota/crown/3269786",
+    "features": [{"group": "Safety", "items": ["Adaptive cruise control", "All-wheel drive", "Backup camera"]}, {"group": "Connectivity", "items": ["Android Auto", "Apple CarPlay", "Bluetooth"]}],
+    "included": ["24/7 roadside assistance", "24/7 customer support"], "extras": [], "reviews": [],
+    "status": "Available", "color": "#e9edf2", "plate": "Turo #3269786", "emoji": "Hybrid"
+  },
+  {
+    "id": 3236892, "name": "Chevrolet Traverse", "year": 2019, "trim": "LT Cloth", "category": "SUV", "seats": 7, "mpg": 22, "fuel": "Gas", "transmission": "Automatic", "price": 57.88,
+    "rating": 4.98, "reviewCount": 61, "trips": 68, "reviewer": "Robert", "review": "Very nice and understanding.",
+    "imageUrl": "https://images.turo.com/media/vehicle/images/8WJp93PbS6eyvABPEcTjKg.heic", "turoUrl": "https://turo.com/us/en/suv-rental/united-states/gibsonton-fl/chevrolet/traverse/3236892",
+    "features": [{"group": "Safety", "items": ["Backup camera", "Blind spot warning"]}, {"group": "Connectivity", "items": ["Android Auto", "Apple CarPlay", "Bluetooth"]}],
+    "included": ["24/7 roadside assistance", "24/7 customer support"], "extras": [], "reviews": [],
+    "status": "Available", "color": "#edf1f5", "plate": "Turo #3236892", "emoji": "SUV"
+  },
+  {
+    "id": 3819957, "name": "Toyota Sienna", "year": 2026, "trim": "XLE", "category": "Hybrid Minivan", "seats": 8, "mpg": 36, "fuel": "Hybrid", "transmission": "Automatic", "price": 66,
+    "rating": null, "reviewCount": 0, "trips": 0, "reviewer": "", "review": "New listing — book this car and be the first to review it.",
+    "imageUrl": "https://images.turo.com/media/vehicle/images/Gg3dR8LqSLS4Om1QSJN5ew.heic", "turoUrl": "https://turo.com/us/en/minivan-rental/united-states/gibsonton-fl/toyota/sienna/3819957",
+    "features": [{"group": "Safety", "items": ["Adaptive cruise control", "Backup camera", "Blind spot warning"]}, {"group": "Connectivity", "items": ["Android Auto", "Apple CarPlay"]}],
+    "included": ["24/7 roadside assistance", "24/7 customer support"], "extras": [], "reviews": [],
+    "status": "Available", "color": "#eef4ef", "plate": "Turo #3819957", "emoji": "Minivan"
+  },
+  {
+    "id": 3264581, "name": "GMC Yukon XL", "year": 2019, "trim": "Denali", "category": "Luxury SUV", "seats": 7, "mpg": 17, "fuel": "Gas", "transmission": "Automatic", "price": 82.13,
+    "rating": 4.97, "reviewCount": 38, "trips": 40, "reviewer": "Tyrone", "review": "Well organized.",
+    "imageUrl": "https://images.turo.com/media/vehicle/images/LPr_QHUmSE29w-VH4R5VLw.heic", "turoUrl": "https://turo.com/us/en/suv-rental/united-states/gibsonton-fl/gmc/yukon-xl/3264581",
+    "features": [{"group": "Safety", "items": ["All-wheel drive", "Backup camera", "Blind spot warning"]}, {"group": "Connectivity", "items": ["Android Auto", "Apple CarPlay", "Bluetooth"]}],
+    "included": ["24/7 roadside assistance", "24/7 customer support"], "extras": [], "reviews": [],
+    "status": "Available", "color": "#e7ebef", "plate": "Turo #3264581", "emoji": "Luxury SUV"
+  }
+]

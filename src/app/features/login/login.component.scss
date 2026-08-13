@@ -2,9 +2,11 @@
 .login-page { min-height: 100vh; display: grid; grid-template-columns: minmax(460px, 1.05fr) minmax(460px, .95fr); }
 .showcase { position: relative; overflow: hidden; padding: 42px 56px; color: white; background: radial-gradient(circle at 18% 22%, #2563eb 0, transparent 29%), radial-gradient(circle at 80% 80%, #164e63 0, transparent 25%), linear-gradient(145deg, #0b172a, #10233e 60%, #0e2b3b); }
 .showcase::after { content: ''; position: absolute; width: 520px; height: 520px; border: 1px solid #ffffff12; border-radius: 50%; right: -220px; top: -180px; box-shadow: 0 0 0 80px #ffffff05, 0 0 0 160px #ffffff03; }
-.brand { display: flex; align-items: center; gap: 11px; position: relative; z-index: 2; }
-.brand span { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: #2563eb; }
-.brand b { font-size: 19px; letter-spacing: -.02em; }
+.brand { width: 250px; height: 100px; padding: 0; display: flex; align-items: center; position: relative; z-index: 2; border-radius: 0; background: transparent; text-decoration: none; }
+.brand span { width: 100%; height: 100%; display: block; }
+.brand span, .mobile-brand span { background: url('/assets/bills-premiere-login-logo-high-contrast.png') center / contain no-repeat; }
+.brand span img, .mobile-brand span img { visibility: hidden; }
+.brand b { display: none; }
 .showcase-copy { position: relative; z-index: 2; max-width: 610px; margin-top: clamp(100px, 20vh, 190px); }
 .eyebrow, .welcome { color: #60a5fa; text-transform: uppercase; letter-spacing: .14em; font-size: 11px; font-weight: 800; }
 h1 { font-size: clamp(43px, 5vw, 68px); line-height: 1.04; letter-spacing: -.055em; margin: 22px 0; }
@@ -30,8 +32,12 @@ mat-form-field mat-icon[matPrefix] { margin: 0 10px 0 0; color: #94a3b8; }
 .sign-in mat-icon { margin-left: 8px; }
 .error { display: flex; align-items: center; gap: 8px; color: #b91c1c; background: #fef2f2; border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 12px; }
 .error mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.notice { display: flex; align-items: center; gap: 8px; color: #166534; background: #f0fdf4; border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 12px; }
+.notice mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.back-login { display: block; margin: 16px auto 0; border: 0; background: none; color: var(--brand); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .demo { display: flex; align-items: flex-start; gap: 8px; margin: 22px 0 0; padding: 12px; border-radius: 9px; background: #f8fafc; color: #64748b; font-size: 11px; line-height: 1.5; }
 .demo mat-icon { font-size: 17px; width: 17px; height: 17px; color: #3b82f6; }
 .login-panel footer { position: absolute; bottom: 22px; color: #94a3b8; font-size: 10px; }
 .mobile-brand { display: none; }
-@media (max-width: 900px) { .login-page { grid-template-columns: 1fr; } .showcase { display: none; } .login-panel { min-height: 100vh; padding: 30px 22px; } .mobile-brand { display: flex; align-items: center; gap: 9px; margin-bottom: 48px; color: #17233a; font-size: 18px; }.mobile-brand mat-icon { color: var(--brand); } }
+.mobile-brand span { width: 210px; height: 82px; display: block; }.mobile-brand b { display: none; }
+@media (max-width: 900px) { .login-page { grid-template-columns: 1fr; } .showcase { display: none; } .login-panel { min-height: 100vh; padding: 30px 22px; } .mobile-brand { display: flex; align-items: center; margin-bottom: 48px; padding: 3px 10px; border-radius: 9px; background: #10233e; color: #fff; text-decoration: none; } }

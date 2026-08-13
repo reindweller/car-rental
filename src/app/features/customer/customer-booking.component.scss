@@ -4,3 +4,67 @@
 /* Public listing photography, ratings, and guest review details */
 .mini-car{overflow:hidden}.mini-car img,.selected-car img,.car-thumb img{width:100%;height:100%;object-fit:cover}.selected-car{overflow:hidden}.selected-car>img{width:100%;height:100%;object-fit:cover}.selected-car>span{z-index:1}.listing-rating{display:flex;align-items:center;gap:4px;margin:-4px 0 11px;font-size:8px}.listing-rating mat-icon{font-size:15px;width:15px;height:15px;color:#f59e0b}.listing-rating span{color:#94a3b8}.guest-review{display:flex;gap:7px;padding:10px;margin:12px 0;background:#f8fafc;border-radius:9px;color:#64748b}.guest-review>mat-icon{font-size:17px;width:17px;height:17px;color:#93a4bb}.guest-review p{display:grid;margin:0;font-size:8px;line-height:1.5}.guest-review small{margin-top:4px;color:#94a3b8}.car-thumb{overflow:hidden}
 @media(max-width:880px){.summary .listing-rating,.summary .guest-review{display:none}}
+
+/* Match the public landing-page header branding. */
+.site-header { height: 78px; }
+.site-header .brand > span {
+  width: 218px;
+  height: 58px;
+  border-radius: 0;
+  background: transparent;
+}
+.site-header .brand > span > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+.site-header .brand > b { display: none; }
+@media(max-width:580px){
+  .site-header { height: 68px; }
+  .site-header .brand > span { width: 155px; height: 48px; }
+}
+
+.vehicle-summary-link{display:block;color:inherit;text-decoration:none;border-radius:11px;cursor:pointer;transition:transform .15s,box-shadow .15s}.vehicle-summary-link:hover{transform:translateY(-1px);box-shadow:0 5px 16px #0f172a12}.vehicle-summary-link:focus-visible{outline:2px solid #2563eb;outline-offset:4px}
+
+.payment-field label{display:block;margin-bottom:8px;color:#334155;font-size:11px;font-weight:700}.payment-fields,.payment-field-row{display:grid;gap:12px}.payment-field-row{grid-template-columns:1fr 1fr}
+.card-element {
+  box-sizing: border-box;
+  height: 43px;
+  min-height: 43px;
+  padding: 12px 14px;
+  border: 1px solid #d8e0ea;
+  border-radius: 9px;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.card-element:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px #dbeafe;
+}
+.payment-fields.loading .card-element {
+  background: linear-gradient(90deg, #f8fafc, #eef2f7, #f8fafc);
+  background-size: 200% 100%;
+  animation: payment-loading 1.2s linear infinite;
+}
+.payment-note,
+.payment-error {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 9px 0 0;
+  color: #64748b;
+  font-size: 8px;
+  line-height: 1.5;
+}
+.payment-note mat-icon,
+.payment-error mat-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+}
+.payment-note mat-icon { color: #16a34a; }
+.payment-error { color: #dc2626; }
+@keyframes payment-loading { to { background-position: -200% 0; } }
+@media(max-width:580px){.payment-field-row{grid-template-columns:1fr}}

@@ -1,4 +1,4 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, OnDestroy, computed, signal } from '@angular/core';
 import { CurrencyPipe, NgTemplateOutlet } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -6,24 +6,63 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
 import { DataService } from '../../core/data.service';
+import { Booking } from '../../core/models';
+import { formatBookingPeriod } from '../../core/booking-date';
 
 @Component({
   selector: 'app-bookings',
   imports: [CurrencyPipe, NgTemplateOutlet, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatTabsModule],
-  template: `
-    <div class="page-heading"><div><h1>Bookings</h1><p>Manage reservations, pickups, and returns.</p></div><button mat-flat-button><mat-icon>add</mat-icon>New booking</button></div>
-    <section class="booking-stats">@for (stat of stats; track stat.label) {<article><span [style.background]="stat.bg"><mat-icon>{{ stat.icon }}</mat-icon></span><div><b>{{ stat.value }}</b><small>{{ stat.label }}</small></div></article>}</section>
-    <section class="panel">
-      <div class="tools"><mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-icon matPrefix>search</mat-icon><input matInput placeholder="Search booking, customer, or vehicle" (input)="search.set($any($event.target).value)"></mat-form-field><button mat-stroked-button><mat-icon>tune</mat-icon>Filters</button><button mat-stroked-button><mat-icon>download</mat-icon>Export</button></div>
-      <mat-tab-group animationDuration="150ms"><mat-tab label="All bookings"><ng-template matTabContent><ng-container *ngTemplateOutlet="table"></ng-container></ng-template></mat-tab><mat-tab label="Active"><ng-template matTabContent><ng-container *ngTemplateOutlet="table"></ng-container></ng-template></mat-tab><mat-tab label="Upcoming"><ng-template matTabContent><ng-container *ngTemplateOutlet="table"></ng-container></ng-template></mat-tab></mat-tab-group>
-      <ng-template #table><div class="table-wrap"><table><thead><tr><th>Booking ID</th><th>Customer</th><th>Vehicle</th><th>Rental period</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>@for (b of filtered(); track b.id) {<tr><td><b>{{ b.id }}</b></td><td><span class="avatar">{{ b.customer[0] }}</span><b>{{ b.customer }}</b></td><td>{{ b.vehicle }}</td><td>{{ b.period }}</td><td><b>{{ b.total | currency }}</b></td><td><span class="status" [attr.data-status]="b.status">{{ b.status }}</span></td><td><button mat-icon-button><mat-icon>more_horiz</mat-icon></button></td></tr>}</tbody></table></div></ng-template>
-    </section>
-  `,
+  templateUrl: './bookings.component.html',
   styleUrl: './bookings.component.scss',
 })
-export class BookingsComponent {
+export class BookingsComponent implements OnDestroy {
   readonly search = signal('');
-  readonly stats = [{label:'Active rentals',value:'18',icon:'key',bg:'#dbeafe'},{label:'Pickups today',value:'6',icon:'north_east',bg:'#dcfce7'},{label:'Returns today',value:'4',icon:'south_west',bg:'#fef3c7'},{label:'Pending approval',value:'3',icon:'hourglass_top',bg:'#f3e8ff'}];
+  private readonly now = signal(new Date());
+  private readonly clock = window.setInterval(() => this.now.set(new Date()), 60_000);
+  readonly stats = computed(() => {
+    const now = this.now();
+    const today = this.dateKey(now);
+    const bookings = this.data.bookings();
+    return [
+      { label: 'Active rentals', value: bookings.filter(booking => this.isActiveAt(booking, now)).length, icon: 'key', bg: '#dbeafe' },
+      { label: 'Pickups today', value: bookings.filter(booking => this.dateKey(booking.startDate) === today).length, icon: 'north_east', bg: '#dcfce7' },
+      { label: 'Returns today', value: bookings.filter(booking => this.dateKey(booking.endDate) === today).length, icon: 'south_west', bg: '#fef3c7' },
+    ];
+  });
   readonly filtered = computed(() => this.data.bookings().filter(b => `${b.id} ${b.customer} ${b.vehicle}`.toLowerCase().includes(this.search().toLowerCase())));
+  readonly bookingPeriod = formatBookingPeriod;
   constructor(readonly data: DataService) {}
+
+  ngOnDestroy(): void {
+    window.clearInterval(this.clock);
+  }
+
+  private isActiveAt(booking: Booking, now: Date): boolean {
+    const start = this.bookingTime(booking.startDate, false);
+    const end = this.bookingTime(booking.endDate, true);
+    return booking.status !== 'Completed' && start !== null && end !== null && start <= now.getTime() && now.getTime() <= end;
+  }
+
+  private bookingTime(value: string | undefined, endOfDay: boolean): number | null {
+    const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+    if (!match) return null;
+    const hasTime = match[4] !== undefined;
+    return new Date(
+      Number(match[1]), Number(match[2]) - 1, Number(match[3]),
+      hasTime ? Number(match[4]) : endOfDay ? 23 : 0,
+      hasTime ? Number(match[5]) : endOfDay ? 59 : 0,
+      !hasTime && endOfDay ? 59 : 0,
+    ).getTime();
+  }
+
+  private dateKey(value: string | Date | undefined): string {
+    if (!value) return '';
+    if (typeof value === 'string') {
+      const calendarDate = value.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (calendarDate) return calendarDate[1];
+    }
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
 }

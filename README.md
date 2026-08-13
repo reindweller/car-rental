@@ -8,12 +8,13 @@ A responsive Angular 21 operations dashboard for a car-rental business. It uses 
 - Customer booking journey with vehicle selection and a date-range calendar
 - Live rental pricing with daily rate, optional coverage, taxes, and total
 - Validated customer details and booking confirmation reference
-- Demo login and protected application routes
+- Stripe card payment during booking, with server-calculated totals and payment verification
+- Amazon Cognito login, invitation-based staff onboarding, password challenges, token refresh, and password recovery
 - Operations dashboard with fleet, revenue, and booking summaries
 - Searchable, filterable vehicle inventory
 - Booking management view
 - User management with role filters, invitations, editing, suspension, and removal
-- Browser-local persistence for the demo session and team changes
+- API-backed persistence for fleet, bookings, and team access
 - Responsive desktop and mobile navigation
 
 ## Run locally
@@ -23,11 +24,72 @@ npm install
 npm start
 ```
 
-Open `http://localhost:4200` for the customer website, or `http://localhost:4200/login` for the staff portal. Sign in with `admin@billspremiere.com` and any password of at least six characters.
+Open `http://localhost:4200` for the customer website, or `http://localhost:4200/login` for the staff portal.
 
-## Production integration
+## AWS backend
 
-The demo services in `src/app/core` intentionally isolate authentication and data access. Replace their local-storage and in-memory implementations with `HttpClient` calls to connect a backend without changing the feature components.
+The deployed `car-rental` stack in `ap-southeast-1` contains:
+
+- A Cognito user pool and public web client
+- An API Gateway REST API with public vehicle/booking routes and Cognito-protected staff routes
+- A Python Lambda backend
+- Encrypted, point-in-time-recoverable DynamoDB vehicle and booking tables
+- A private, encrypted S3 bucket for uploaded vehicle photos
+
+The current development configuration is in `src/environments/environment.ts`. User profiles, roles, invitations, suspensions, and deletion are managed directly in Cognito; they are not duplicated in DynamoDB.
+
+### Deploy or update
+
+PowerShell:
+
+```powershell
+.\infrastructure\deploy.ps1 -Profile reindweller -Region ap-southeast-1
+```
+
+To enable payments, create Stripe test-mode API keys, set them for the current PowerShell session, and deploy:
+
+```powershell
+$env:STRIPE_PUBLISHABLE_KEY = "pk_test_..."
+$env:STRIPE_SECRET_KEY = "sk_test_..."
+.\infrastructure\deploy.ps1 -Profile reindweller -Region ap-southeast-1
+```
+
+The secret key is sent only to the Lambda environment. The deploy script writes only the safe publishable key to the Angular environment file. Do not commit or place an `sk_test_` or `sk_live_` key in frontend code.
+
+### Test a payment
+
+1. Make sure the deployed stack uses Stripe **test-mode** keys, then run `npm start`.
+2. Open `http://localhost:4200/book`, choose a vehicle and valid future dates, and complete the customer fields.
+3. For a successful payment, enter card `4242 4242 4242 4242`, any future expiry such as `12/34`, any three-digit CVC, and any postal code.
+4. To test a decline, use `4000 0000 0000 9995` with the same kind of expiry, CVC, and postal code.
+5. Confirm that a successful payment displays a booking reference, appears as succeeded in the Stripe test dashboard, and creates a DynamoDB booking with `paymentStatus: Paid` and its `paymentIntentId`.
+
+Never enter a real card while using test mode. See [Stripe's test-card documentation](https://docs.stripe.com/testing) for more scenarios, including 3D Secure.
+
+To send the first Cognito administrator invitation during a fresh deployment:
+
+```powershell
+.\infrastructure\deploy.ps1 -AdminEmail you@example.com
+```
+
+The script packages the Lambda, deploys CloudFormation, and writes the stack outputs into the Angular environment file. Multiple frontend origins can be allowlisted for both the API and S3 uploads:
+
+```powershell
+.\infrastructure\deploy.ps1 `
+  -Profile reindweller `
+  -Region ap-southeast-1 `
+  -AllowedOrigins "http://localhost:4200","https://rentals.example.com"
+```
+
+### Authorization
+
+- Public: list vehicles and create customer bookings
+- Administrator, Manager, Agent: fleet and booking operations
+- Administrator only: list, invite, edit, suspend, reactivate, and remove Cognito users
+
+Newly invited users sign in with their emailed temporary password and are prompted to choose a permanent one. The password policy requires at least 12 characters including uppercase, lowercase, number, and symbol.
+
+Up to 15 vehicle photos can be uploaded from the **Add vehicle** dialog as JPEG, PNG, or WebP files. Photos are cropped to 16:9 and oversized files are automatically resized and compressed below 8 MB before the browser uploads them directly to the private S3 bucket with five-minute signed URLs. Customer-facing image requests use short-lived read URLs generated by the backend.
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.0.1.
 

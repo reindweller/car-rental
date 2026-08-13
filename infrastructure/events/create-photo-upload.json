@@ -1,0 +1,14 @@
+{
+  "httpMethod": "POST",
+  "resource": "/uploads",
+  "body": "{\"contentType\":\"image/jpeg\",\"size\":4}",
+  "requestContext": {
+    "domainName": "j2briozmp5.execute-api.ap-southeast-1.amazonaws.com",
+    "stage": "v1",
+    "authorizer": {
+      "claims": {
+        "custom:role": "Administrator"
+      }
+    }
+  }
+}
