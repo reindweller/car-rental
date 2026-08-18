@@ -12,6 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AddVehicleDialogResult, DataService } from '../../core/data.service';
 import { AddVehicleDialogComponent } from './add-vehicle-dialog.component';
+import { DeleteVehicleDialogComponent } from './delete-vehicle-dialog.component';
 import { Vehicle } from '../../core/models';
 
 @Component({
@@ -59,13 +60,29 @@ export class VehiclesComponent {
           ...result.input,
           imageUrl: imageUrls[0],
           imageUrls,
-          features: [{ group: vehicle.features[0]?.group ?? 'Vehicle features', items: result.input.features.split(',').map(item => item.trim()).filter(Boolean) }],
-          included: result.input.included.split(',').map(item => item.trim()).filter(Boolean),
           rules: result.input.rules.split(',').map(item => item.trim()).filter(Boolean),
         });
         this.snack.open(`${result.input.year} ${result.input.name} updated`, 'Dismiss', { duration: 3500 });
       } catch {
         this.snack.open('The vehicle changes could not be saved.', 'Dismiss', { duration: 3500 });
+      }
+    });
+  }
+
+  deleteVehicle(vehicle: Vehicle): void {
+    const ref = this.dialog.open(DeleteVehicleDialogComponent, {
+      data: vehicle,
+      width: '430px',
+      maxWidth: '94vw',
+      autoFocus: false,
+    });
+    ref.afterClosed().subscribe(async (confirmed?: boolean) => {
+      if (!confirmed) return;
+      try {
+        await this.data.removeVehicle(vehicle.id);
+        this.snack.open(`${vehicle.year} ${vehicle.name} deleted`, 'Dismiss', { duration: 3000 });
+      } catch {
+        this.snack.open('The vehicle could not be deleted.', 'Dismiss', { duration: 3500 });
       }
     });
   }

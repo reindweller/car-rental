@@ -1,10 +1,10 @@
 <div class="page-heading">
-  <div><span class="eyebrow">Saturday, July 18</span><h1>Good afternoon, Alex</h1><p>Here’s what’s happening with your rental business today.</p></div>
+  <div><span class="eyebrow">{{ todayLabel }}</span><h1>{{ greeting }}, {{ firstName() }}</h1><p>Here’s what’s happening with your rental business today.</p></div>
   <a mat-flat-button routerLink="/bookings"><mat-icon>add</mat-icon>New booking</a>
 </div>
 
 <section class="metrics">
-  @for (metric of metrics; track metric.label) {
+  @for (metric of metrics(); track metric.label) {
     <article class="metric-card">
       <div class="metric-icon" [style.background]="metric.bg" [style.color]="metric.color"><mat-icon>{{ metric.icon }}</mat-icon></div>
       <span>{{ metric.label }}</span><strong>{{ metric.value }}</strong>
@@ -15,33 +15,33 @@
 
 <div class="content-grid">
   <section class="panel revenue">
-    <header><div><h2>Revenue overview</h2><p>Monthly rental income</p></div><button>Last 6 months <mat-icon>expand_more</mat-icon></button></header>
+    <header><div><h2>Revenue overview</h2><p>Monthly paid rental income</p></div><span class="range">Last 6 months</span></header>
     <div class="chart">
-      <div class="y-labels"><span>$30k</span><span>$20k</span><span>$10k</span><span>$0</span></div>
+      <div class="y-labels">@for (label of revenueChart().yLabels; track $index) { <span>{{ label }}</span> }</div>
       <div class="plot">
         <i></i><i></i><i></i><i></i>
-        <svg viewBox="0 0 600 190" preserveAspectRatio="none" aria-label="Revenue trending upward">
+        <svg viewBox="0 0 600 190" preserveAspectRatio="none" role="img" [attr.aria-label]="revenueChart().summary">
           <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2563eb" stop-opacity=".24"/><stop offset="1" stop-color="#2563eb" stop-opacity="0"/></linearGradient></defs>
-          <path class="area" d="M0 160 C55 145 76 120 120 133 S205 95 240 105 S325 63 360 79 S445 33 480 50 S555 15 600 25 L600 190 L0 190Z"/>
-          <path class="line" d="M0 160 C55 145 76 120 120 133 S205 95 240 105 S325 63 360 79 S445 33 480 50 S555 15 600 25"/>
+          <path class="area" [attr.d]="revenueChart().area"/>
+          <path class="line" [attr.d]="revenueChart().line"/>
         </svg>
-        <div class="x-labels"><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span></div>
+        <div class="x-labels">@for (label of revenueChart().labels; track $index) { <span>{{ label }}</span> }</div>
       </div>
     </div>
   </section>
 
   <section class="panel fleet">
     <header><div><h2>Fleet status</h2><p>Live vehicle availability</p></div><a routerLink="/vehicles">View all</a></header>
-    <div class="donut-row"><div class="donut"><div><b>5</b><span>Vehicles</span></div></div>
-      <div class="legend"><span><i class="available"></i><b>Available</b><em>5</em></span><span><i class="rented"></i><b>Rented</b><em>0</em></span><span><i class="maintenance"></i><b>Maintenance</b><em>0</em></span></div>
+    <div class="donut-row"><div class="donut" [style.background]="fleetDonut()"><div><b>{{ fleet().total }}</b><span>Vehicles</span></div></div>
+      <div class="legend"><span><i class="available"></i><b>Available</b><em>{{ fleet().available }}</em></span><span><i class="rented"></i><b>Rented</b><em>{{ fleet().rented }}</em></span></div>
     </div>
-    <div class="util"><span>Fleet utilization <b>67%</b></span><mat-progress-bar mode="determinate" value="67" /></div>
+    <div class="util"><span>Fleet utilization <b>{{ fleet().utilization }}%</b></span><mat-progress-bar mode="determinate" [value]="fleet().utilization" /></div>
   </section>
 </div>
 
 <section class="panel bookings-panel">
   <header><div><h2>Recent bookings</h2><p>Latest activity across your fleet</p></div><a routerLink="/bookings">View all bookings <mat-icon>arrow_forward</mat-icon></a></header>
   <div class="table-wrap"><table><thead><tr><th>Booking</th><th>Customer</th><th>Vehicle</th><th>Rental period</th><th>Total</th><th>Status</th></tr></thead>
-    <tbody>@for (booking of data.bookings(); track booking.id) {<tr><td><b>{{ booking.id }}</b></td><td><span class="customer-avatar">{{ booking.customer[0] }}</span>{{ booking.customer }}</td><td>{{ booking.vehicle }}</td><td>{{ bookingPeriod(booking) }}</td><td><b>{{ booking.total | currency }}</b></td><td><span class="status" [attr.data-status]="booking.status">{{ booking.status }}</span></td></tr>}</tbody>
+    <tbody>@for (booking of recentBookings(); track booking.id) {<tr><td><b>{{ booking.id }}</b></td><td><span class="customer-avatar">{{ booking.customer[0] }}</span>{{ booking.customer }}</td><td>{{ booking.vehicle }}</td><td>{{ bookingPeriod(booking) }}</td><td><b>{{ booking.total | currency }}</b></td><td><span class="status" [attr.data-status]="booking.status">{{ booking.status }}</span></td></tr>} @empty { <tr><td colspan="6" class="empty">No bookings yet.</td></tr> }</tbody>
   </table></div>
 </section>

@@ -1,0 +1,23 @@
+<h2 mat-dialog-title>Filter bookings</h2>
+<mat-dialog-content>
+  <mat-form-field appearance="outline">
+    <mat-label>Status</mat-label>
+    <mat-select [formControl]="form.controls.status">
+      <mat-option value="All">All statuses</mat-option>
+      <mat-option value="Confirmed">Confirmed</mat-option>
+      <mat-option value="Active">Active</mat-option>
+      <mat-option value="Pending">Pending</mat-option>
+      <mat-option value="Completed">Completed</mat-option>
+    </mat-select>
+  </mat-form-field>
+  <div class="dates">
+    <mat-form-field appearance="outline"><mat-label>Rental dates from</mat-label><input matInput [matDatepicker]="fromPicker" [max]="form.controls.endDate.value" [formControl]="form.controls.startDate"><mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle><mat-datepicker #fromPicker></mat-datepicker></mat-form-field>
+    <mat-form-field appearance="outline"><mat-label>Rental dates through</mat-label><input matInput [matDatepicker]="throughPicker" [min]="form.controls.startDate.value" [formControl]="form.controls.endDate"><mat-datepicker-toggle matIconSuffix [for]="throughPicker"></mat-datepicker-toggle><mat-datepicker #throughPicker></mat-datepicker></mat-form-field>
+  </div>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-button (click)="clear()">Clear filters</button>
+  <span></span>
+  <button mat-button mat-dialog-close>Cancel</button>
+  <button mat-flat-button (click)="apply()">Apply filters</button>
+</mat-dialog-actions>

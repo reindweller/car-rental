@@ -7,7 +7,7 @@
 
     <h3>Specifications and pricing</h3>
     <div class="fields four"><mat-form-field appearance="outline"><mat-label>Seats</mat-label><input matInput type="number" formControlName="seats" min="1" max="15"></mat-form-field><mat-form-field appearance="outline"><mat-label>MPG</mat-label><input matInput type="number" formControlName="mpg" min="0"></mat-form-field><mat-form-field appearance="outline"><mat-label>Fuel</mat-label><mat-select formControlName="fuel"><mat-option value="Gas">Gas</mat-option><mat-option value="Hybrid">Hybrid</mat-option><mat-option value="Electric">Electric</mat-option><mat-option value="Diesel">Diesel</mat-option></mat-select></mat-form-field><mat-form-field appearance="outline"><mat-label>Transmission</mat-label><mat-select formControlName="transmission"><mat-option value="Automatic">Automatic</mat-option><mat-option value="Manual">Manual</mat-option></mat-select></mat-form-field></div>
-    <div class="fields two"><mat-form-field appearance="outline"><mat-label>Daily price (USD)</mat-label><span matTextPrefix>$&nbsp;</span><input matInput type="number" formControlName="price" min="1" step="0.01"><mat-error>Enter a valid daily price</mat-error></mat-form-field><mat-form-field appearance="outline"><mat-label>Initial status</mat-label><mat-select formControlName="status"><mat-option value="Available">Available</mat-option><mat-option value="Rented">Rented</mat-option><mat-option value="Maintenance">Maintenance</mat-option></mat-select></mat-form-field></div>
+    <div class="fields two"><mat-form-field appearance="outline"><mat-label>Daily price (USD)</mat-label><span matTextPrefix>$&nbsp;</span><input matInput type="number" formControlName="price" min="1" step="0.01"><mat-error>Enter a valid daily price</mat-error></mat-form-field><mat-form-field appearance="outline"><mat-label>Initial status</mat-label><mat-select formControlName="status"><mat-option value="Available">Available</mat-option><mat-option value="Rented">Rented</mat-option></mat-select></mat-form-field></div>
 
     <h3>Car location</h3>
     <mat-form-field appearance="outline"><mat-label>Current vehicle address</mat-label><mat-icon matPrefix>garage</mat-icon><input matInput formControlName="carLocation" placeholder="Street, city, state, ZIP code"><mat-hint>The address where this vehicle is currently based</mat-hint><mat-error>Car location must be 250 characters or fewer</mat-error></mat-form-field>
@@ -27,15 +27,17 @@
     <h3>Customer listing</h3>
     <div class="photo-upload">
       <input #photoInput hidden type="file" multiple accept="image/jpeg,image/png,image/webp" (change)="selectPhotos($any($event.target).files); photoInput.value = ''">
-      <button type="button" class="upload-button" (click)="photoInput.click()" [disabled]="existingPhotoUrls().length + selectedPhotos().length >= 15 || processingPhotos()">
+      <button type="button" class="upload-button" (click)="photoInput.click()" [disabled]="photoOrder().length >= 15 || processingPhotos()">
         <mat-icon>{{ processingPhotos() ? 'hourglass_top' : 'cloud_upload' }}</mat-icon>
         <span><b>{{ processingPhotos() ? 'Preparing 16:9 crops…' : selectedPhotos().length ? 'Add more vehicle photos' : 'Upload vehicle photos' }}</b><small>Up to 15 JPEG, PNG, or WebP photos · Large files are resized below 8 MB</small></span>
       </button>
+      @if (photoOrder().length) {
+        <div class="photo-count">{{ photoOrder().length }} of 15 photos selected · All photos are saved at 16:9 · The first is primary</div>
+      }
       @if (selectedPhotos().length) {
-        <div class="photo-count">{{ existingPhotoUrls().length + selectedPhotos().length }} of 15 photos selected · All photos are saved at 16:9 · The first is primary</div>
         <div class="selected-files">
           @for (photo of selectedPhotos(); track photo.name + photo.size + $index; let index = $index) {
-            <div class="selected-file"><mat-icon>image</mat-icon><span><b>{{ photo.name }}</b><small>{{ fileSize(photo) }} · 16:9{{ index === 0 ? ' · Primary' : '' }}</small></span><button type="button" mat-icon-button (click)="editCrop(index)" [attr.aria-label]="'Crop ' + photo.name"><mat-icon>crop</mat-icon></button><button type="button" mat-icon-button (click)="removePhoto(index, photoInput)" [attr.aria-label]="'Remove ' + photo.name"><mat-icon>close</mat-icon></button></div>
+            <div class="selected-file"><mat-icon>image</mat-icon><span><b>{{ photo.name }}</b><small>{{ fileSize(photo) }} · 16:9</small></span><button type="button" mat-icon-button (click)="editCrop(index)" [attr.aria-label]="'Crop ' + photo.name"><mat-icon>crop</mat-icon></button><button type="button" mat-icon-button [disabled]="photoOrder().length <= 1" (click)="removePhoto(index, photoInput)" [attr.aria-label]="'Remove ' + photo.name"><mat-icon>close</mat-icon></button></div>
           }
         </div>
       }
@@ -57,12 +59,36 @@
       <p class="photo-order-help"><mat-icon>drag_indicator</mat-icon>Drag photos to set their display order. The first photo is the primary photo.</p>
       <div class="previews" cdkDropList (cdkDropListDropped)="reorderPhotos($event)">
         @for (preview of previewSources(); track preview; let index = $index) {
-          <div class="preview" cdkDrag><img [src]="preview" [alt]="'Vehicle photo preview ' + (index + 1)"><span>{{ index === 0 ? 'Primary photo' : 'Photo ' + (index + 1) }}</span><button type="button" class="drag-handle" cdkDragHandle [attr.aria-label]="'Move photo ' + (index + 1)"><mat-icon>drag_indicator</mat-icon></button></div>
+          <div class="preview" cdkDrag><img [src]="preview" [alt]="'Vehicle photo preview ' + (index + 1)"><span>{{ index === 0 ? 'Primary photo' : 'Photo ' + (index + 1) }}</span><button type="button" class="drag-handle" cdkDragHandle [attr.aria-label]="'Move photo ' + (index + 1)"><mat-icon>drag_indicator</mat-icon></button><button type="button" class="remove-photo" [disabled]="photoOrder().length <= 1" (pointerdown)="$event.stopPropagation()" (click)="removeOrderedPhoto(index, photoInput)" [attr.aria-label]="'Remove photo ' + (index + 1)"><mat-icon>delete_outline</mat-icon></button></div>
         }
       </div>
     }
-    <mat-form-field class="listing-text-field" appearance="outline"><mat-label>Vehicle features</mat-label><textarea matInput formControlName="features" rows="3" placeholder="Backup camera, Bluetooth, Keyless entry"></textarea><mat-hint>Separate each feature with a comma</mat-hint></mat-form-field>
-    <mat-form-field class="listing-text-field" appearance="outline"><mat-label>Included in the price</mat-label><textarea matInput formControlName="included" rows="3" placeholder="Roadside assistance, Customer support, Additional driver"></textarea><mat-hint>Separate each included item with a comma</mat-hint><mat-error>Add at least one included item</mat-error></mat-form-field>
+    <h3>Vehicle features</h3>
+    <div class="feature-group-editors" formArrayName="featureGroups">
+      @for (featureGroup of featureGroups.controls; track featureGroup; let index = $index) {
+        <section class="feature-group-editor" [formGroupName]="index">
+          <div class="feature-group-heading">
+            <mat-form-field appearance="outline"><mat-label>Feature group header</mat-label><input matInput formControlName="group" placeholder="e.g. Safety"><mat-error>Enter a header up to 80 characters</mat-error></mat-form-field>
+            <button type="button" mat-icon-button [disabled]="featureGroups.length <= 1" (click)="removeFeatureGroup(index)" [attr.aria-label]="'Remove feature group ' + (index + 1)"><mat-icon>delete_outline</mat-icon></button>
+          </div>
+          <mat-form-field appearance="outline"><mat-label>Features under this header</mat-label><textarea matInput formControlName="items" rows="5" placeholder="Adaptive cruise control&#10;Backup camera&#10;Blind spot warning"></textarea><mat-hint>Enter one feature per line</mat-hint><mat-error>Add at least one feature</mat-error></mat-form-field>
+        </section>
+      }
+      <button type="button" mat-stroked-button class="add-feature-group" (click)="addFeatureGroup()" [disabled]="featureGroups.length >= 12"><mat-icon>add</mat-icon>Add feature group</button>
+    </div>
+    <h3>Included in the price</h3>
+    <div class="feature-group-editors" formArrayName="includedGroups">
+      @for (includedGroup of includedGroups.controls; track includedGroup; let index = $index) {
+        <section class="feature-group-editor" [formGroupName]="index">
+          <div class="feature-group-heading">
+            <mat-form-field appearance="outline"><mat-label>Included group header</mat-label><input matInput formControlName="group" placeholder="e.g. Protection and support"><mat-error>Enter a header up to 80 characters</mat-error></mat-form-field>
+            <button type="button" mat-icon-button [disabled]="includedGroups.length <= 1" (click)="removeIncludedGroup(index)" [attr.aria-label]="'Remove included group ' + (index + 1)"><mat-icon>delete_outline</mat-icon></button>
+          </div>
+          <mat-form-field appearance="outline"><mat-label>Items included under this header</mat-label><textarea matInput formControlName="items" rows="5" placeholder="24/7 roadside assistance&#10;Customer support&#10;Additional driver"></textarea><mat-hint>Enter one included item per line</mat-hint><mat-error>Add at least one included item</mat-error></mat-form-field>
+        </section>
+      }
+      <button type="button" mat-stroked-button class="add-feature-group" (click)="addIncludedGroup()" [disabled]="includedGroups.length >= 12"><mat-icon>add</mat-icon>Add included group</button>
+    </div>
     <mat-form-field class="listing-text-field" appearance="outline"><mat-label>Rules of the road</mat-label><textarea matInput formControlName="rules" rows="3" placeholder="No smoking, Return with a full tank, No pets"></textarea><mat-hint>Separate each rule with a comma</mat-hint><mat-error>Add at least one rule</mat-error></mat-form-field>
   </form>
 </mat-dialog-content>

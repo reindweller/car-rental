@@ -1,0 +1,12 @@
+<div class="icon"><mat-icon>delete_outline</mat-icon></div>
+<h2 mat-dialog-title>Delete vehicle?</h2>
+<mat-dialog-content>
+  <p><b>{{ vehicle.year }} {{ vehicle.name }}</b> will be permanently removed from the fleet.</p>
+  <span>This action cannot be undone.</span>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close [disabled]="deleting()">Cancel</button>
+  <button mat-flat-button class="delete" [disabled]="deleting()" (click)="confirm()">
+    <mat-icon>delete_outline</mat-icon>Delete vehicle
+  </button>
+</mat-dialog-actions>

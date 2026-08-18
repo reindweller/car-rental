@@ -1,0 +1,7 @@
+:host { display: block; }
+h2 { font-size: 20px; }
+mat-dialog-content { width: 500px; max-width: 100%; display: grid; padding-top: 14px !important; }
+.dates { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+mat-dialog-actions { padding: 8px 24px 20px; gap: 5px; }
+mat-dialog-actions span { flex: 1; }
+@media(max-width: 540px) { .dates { grid-template-columns: 1fr; gap: 0; } }

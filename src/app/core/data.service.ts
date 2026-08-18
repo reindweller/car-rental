@@ -21,8 +21,8 @@ export interface AddVehicleInput {
   imageUrls?: string[];
   carLocation: string;
   pickupLocations: string[];
-  features: string;
-  included: string;
+  features: Vehicle['features'];
+  included: Vehicle['included'];
   rules: string;
 }
 

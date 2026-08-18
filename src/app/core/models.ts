@@ -33,11 +33,11 @@ export interface Vehicle {
   pickupLocations?: string[];
   turoUrl: string;
   features: { group: string; items: string[] }[];
-  included: string[];
+  included: { group: string; items: string[] }[];
   rules?: string[];
   extras: { name: string; description: string; price: string }[];
   reviews: VehicleReview[];
-  status: 'Available' | 'Rented' | 'Maintenance';
+  status: 'Available' | 'Rented';
   color: string;
   plate: string;
   emoji: string;
@@ -65,5 +65,6 @@ export interface Booking {
   total: number;
   paymentIntentId?: string;
   paymentStatus?: 'Paid' | 'Refunded' | 'Partially refunded';
+  createdAt?: string;
   status: 'Confirmed' | 'Active' | 'Pending' | 'Completed';
 }

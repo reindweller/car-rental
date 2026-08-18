@@ -21,7 +21,7 @@ export interface VehicleDialogData {
   styles: [`
     .dialog-heading{display:flex;gap:12px;align-items:center;padding:22px 24px 5px}.dialog-heading>span{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;background:#dbeafe;color:#2563eb}.dialog-heading h2{padding:0;margin:0;font-size:19px}.dialog-heading p{margin:4px 0 0;color:#718096;font-size:9px}mat-dialog-content{padding-top:10px!important}form{width:min(680px,78vw);display:grid}h3{font-size:9px;text-transform:uppercase;letter-spacing:.09em;color:#64748b;margin:17px 0 10px}.fields{display:grid;gap:10px}.fields.two{grid-template-columns:1fr 1fr}.fields.three{grid-template-columns:1fr 1fr 1fr}.fields.four{grid-template-columns:repeat(4,1fr)}mat-form-field{width:100%}.locations{display:grid;gap:8px}.location-row{display:grid;grid-template-columns:1fr 38px;gap:7px;align-items:start}.location-row button{margin-top:3px}.add-location{width:max-content;font-size:10px}.location-help{margin:0;color:#718096;font-size:8px}.photo-upload{display:grid;gap:8px}.upload-button{display:flex;align-items:center;justify-content:center;gap:12px;min-height:82px;border:1.5px dashed #93c5fd;border-radius:10px;background:#f8fbff;color:#2563eb;cursor:pointer}.upload-button:hover{background:#eff6ff}.upload-button:disabled{cursor:not-allowed;opacity:.55}.upload-button>mat-icon{font-size:28px;width:28px;height:28px}.upload-button span{display:grid;text-align:left}.upload-button b{font-size:11px}.upload-button small,.selected-file small{color:#64748b;font-size:8px;margin-top:3px}.photo-count{color:#64748b;font-size:8px}.selected-files{display:grid;grid-template-columns:1fr 1fr;gap:6px}.selected-file{display:flex;align-items:center;gap:5px;padding:8px 10px;border-radius:8px;background:#f1f5f9;min-width:0}.selected-file>mat-icon{color:#2563eb}.selected-file span{display:grid;min-width:0;flex:1}.selected-file b{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.selected-file button{width:28px;height:28px;padding:2px}.selected-file button mat-icon{font-size:17px;width:17px;height:17px}.crop-editor{display:grid;gap:10px;padding:12px;border:1px solid #bfdbfe;border-radius:10px;background:#f8fbff}.crop-heading{display:flex;align-items:center;justify-content:space-between}.crop-heading span{display:grid}.crop-heading b{font-size:10px}.crop-heading small{color:#64748b;font-size:8px;margin-top:3px}.crop-frame{aspect-ratio:16/9;overflow:hidden;border-radius:8px;background:#0f172a}.crop-frame img{width:100%;height:100%;object-fit:cover;transition:transform .12s ease}.crop-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.crop-controls label{display:grid;gap:4px}.crop-controls span{color:#475569;font-size:8px;font-weight:700}.crop-controls input{width:100%;accent-color:#2563eb}.crop-actions{display:flex;justify-content:flex-end;gap:6px}.crop-actions button{font-size:9px}.photo-error{display:flex;align-items:center;gap:5px;color:#b91c1c;font-size:9px;margin:0}.photo-error mat-icon{font-size:15px;width:15px;height:15px}.previews{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:2px 0 10px}.preview{height:105px;position:relative;overflow:hidden;border-radius:9px;background:#edf1f5}.preview img{width:100%;height:100%;object-fit:cover}.preview span{position:absolute;left:8px;bottom:8px;padding:4px 7px;border-radius:5px;background:#ffffffdd;font-size:7px;font-weight:700}@media(max-width:650px){form{width:75vw}.fields.two,.fields.three,.fields.four,.selected-files,.crop-controls{grid-template-columns:1fr}.previews{grid-template-columns:1fr 1fr}.preview{height:110px}}
   `, `
-    .listing-text-field{margin-bottom:14px}.photo-order-help{display:flex;align-items:center;gap:5px;color:#64748b;font-size:8px;margin:2px 0}.photo-order-help mat-icon{font-size:14px;width:14px;height:14px}.preview{cursor:grab}.preview:active{cursor:grabbing}.drag-handle{position:absolute;right:7px;top:7px;width:24px;height:24px;border:0;border-radius:5px;background:#ffffffdd;color:#475569;display:grid;place-items:center}.drag-handle mat-icon{font-size:15px;width:15px;height:15px}.cdk-drag-preview{box-sizing:border-box;border-radius:9px;box-shadow:0 8px 20px #0f172a44}.cdk-drag-placeholder{opacity:.35}
+    .listing-text-field{margin-bottom:14px}.feature-group-editors{display:grid;gap:10px;margin-bottom:14px}.feature-group-editor{padding:12px 12px 3px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}.feature-group-heading{display:grid;grid-template-columns:1fr 38px;gap:7px;align-items:start}.feature-group-heading button{margin-top:3px;color:#dc2626}.add-feature-group{width:max-content;font-size:10px}.photo-order-help{display:flex;align-items:center;gap:5px;color:#64748b;font-size:8px;margin:2px 0}.photo-order-help mat-icon{font-size:14px;width:14px;height:14px}.preview{cursor:grab}.preview:active{cursor:grabbing}.drag-handle,.remove-photo{position:absolute;right:7px;width:24px;height:24px;border:0;border-radius:5px;background:#ffffffdd;color:#475569;display:grid;place-items:center}.drag-handle{top:7px}.remove-photo{bottom:7px;color:#dc2626;cursor:pointer}.remove-photo:disabled{color:#94a3b8;cursor:not-allowed;opacity:.65}.drag-handle mat-icon,.remove-photo mat-icon{font-size:15px;width:15px;height:15px}.cdk-drag-preview{box-sizing:border-box;border-radius:9px;box-shadow:0 8px 20px #0f172a44}.cdk-drag-placeholder{opacity:.35}
   `],
 })
 export class AddVehicleDialogComponent implements OnDestroy {
@@ -53,42 +53,82 @@ export class AddVehicleDialogComponent implements OnDestroy {
     status: new FormControl<AddVehicleInput['status']>('Available', { nonNullable: true, validators: Validators.required }),
     carLocation: new FormControl('', { nonNullable: true, validators: Validators.maxLength(250) }),
     pickupLocations: new FormArray<FormControl<string>>([]),
-    features: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    included: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    featureGroups: new FormArray<FormGroup<{
+      group: FormControl<string>;
+      items: FormControl<string>;
+    }>>([]),
+    includedGroups: new FormArray<FormGroup<{
+      group: FormControl<string>;
+      items: FormControl<string>;
+    }>>([]),
     rules: new FormControl('', { nonNullable: true, validators: Validators.required }),
   });
   constructor() {
     this.photoOrder.set(this.existingPhotoUrls().map((_, index) => ({ type: 'existing', index })));
-    if (!this.vehicle) return;
+    if (!this.vehicle) {
+      this.addFeatureGroup();
+      this.addIncludedGroup();
+      return;
+    }
     this.form.patchValue({
       name: this.vehicle.name, year: this.vehicle.year, trim: this.vehicle.trim,
       category: this.vehicle.category, plate: this.vehicle.plate, seats: this.vehicle.seats,
       mpg: this.vehicle.mpg, fuel: this.vehicle.fuel, transmission: this.vehicle.transmission,
       price: this.vehicle.price, status: this.vehicle.status, carLocation: this.vehicle.carLocation ?? '',
-      features: this.vehicle.features.flatMap(feature => feature.items).join(', '),
-      included: this.vehicle.included.join(', '),
       rules: (this.vehicle.rules ?? []).join(', '),
     });
+    this.vehicle.features.forEach(feature => this.addFeatureGroup(feature.group, feature.items));
+    if (!this.featureGroups.length) this.addFeatureGroup();
+    this.vehicle.included.forEach(group => this.addIncludedGroup(group.group, group.items));
+    if (!this.includedGroups.length) this.addIncludedGroup();
     (this.vehicle.pickupLocations ?? []).forEach(location => this.addPickupLocation(location));
   }
   get pickupLocations(): FormArray<FormControl<string>> { return this.form.controls.pickupLocations; }
+  get featureGroups() { return this.form.controls.featureGroups; }
+  get includedGroups() { return this.form.controls.includedGroups; }
   addPickupLocation(value = ''): void {
     if (this.pickupLocations.length >= 15) return;
     this.pickupLocations.push(new FormControl(value, { nonNullable: true, validators: [Validators.required, Validators.maxLength(250)] }));
   }
   removePickupLocation(index: number): void { this.pickupLocations.removeAt(index); }
+  addFeatureGroup(group = '', items: string[] = []): void {
+    if (this.featureGroups.length >= 12) return;
+    this.featureGroups.push(new FormGroup({
+      group: new FormControl(group, { nonNullable: true, validators: [Validators.required, Validators.maxLength(80)] }),
+      items: new FormControl(items.join('\n'), { nonNullable: true, validators: Validators.required }),
+    }));
+  }
+  removeFeatureGroup(index: number): void {
+    if (this.featureGroups.length > 1) this.featureGroups.removeAt(index);
+  }
+  addIncludedGroup(group = '', items: string[] = []): void {
+    if (this.includedGroups.length >= 12) return;
+    this.includedGroups.push(new FormGroup({
+      group: new FormControl(group, { nonNullable: true, validators: [Validators.required, Validators.maxLength(80)] }),
+      items: new FormControl(items.join('\n'), { nonNullable: true, validators: Validators.required }),
+    }));
+  }
+  removeIncludedGroup(index: number): void {
+    if (this.includedGroups.length > 1) this.includedGroups.removeAt(index);
+  }
   previewSources(): string[] {
     return this.photoOrder().map(item => item.type === 'existing' ? this.existingPhotoUrls()[item.index] : this.localPreviews()[item.index]);
   }
   existingPhotoUrls(): string[] { return this.vehicle?.imageUrls?.length ? this.vehicle.imageUrls : this.vehicle?.imageUrl ? [this.vehicle.imageUrl] : []; }
   fileSize(file: File): string { return `${(file.size / 1_048_576).toFixed(1)} MB`; }
   canSave(): boolean {
-    return this.form.valid && this.existingPhotoUrls().length + this.selectedPhotos().length > 0 && !this.processingPhotos() && this.cropIndex() === null;
+    const featuresValid = this.featureGroups.controls.every(control =>
+      control.controls.group.value.trim() && this.featureItems(control.controls.items.value).length,
+    );
+    const includedValid = this.includedGroups.controls.every(control =>
+      control.controls.group.value.trim() && this.featureItems(control.controls.items.value).length,
+    );
+    return this.form.valid && featuresValid && includedValid && this.photoOrder().length > 0 && !this.processingPhotos() && this.cropIndex() === null;
   }
   async selectPhotos(files?: FileList): Promise<void> {
     if (!files?.length) return;
     this.photoError.set('');
-    const remaining = 15 - this.existingPhotoUrls().length - this.selectedPhotos().length;
+    const remaining = 15 - this.photoOrder().length;
     if (!remaining) {
       this.photoError.set('You can add up to 15 photos.');
       return;
@@ -148,6 +188,10 @@ export class AddVehicleDialogComponent implements OnDestroy {
     }
   }
   removePhoto(index: number, input: HTMLInputElement): void {
+    if (this.photoOrder().length <= 1) {
+      this.photoError.set('A vehicle must have at least one photo.');
+      return;
+    }
     URL.revokeObjectURL(this.localPreviews()[index]);
     URL.revokeObjectURL(this.originalPreviews()[index]);
     this.selectedPhotos.update(current => current.filter((_, photoIndex) => photoIndex !== index));
@@ -163,6 +207,20 @@ export class AddVehicleDialogComponent implements OnDestroy {
     this.photoError.set('');
     input.value = '';
   }
+  removeOrderedPhoto(orderIndex: number, input: HTMLInputElement): void {
+    const item = this.photoOrder()[orderIndex];
+    if (!item) return;
+    if (this.photoOrder().length <= 1) {
+      this.photoError.set('A vehicle must have at least one photo.');
+      return;
+    }
+    if (item.type === 'new') {
+      this.removePhoto(item.index, input);
+      return;
+    }
+    this.photoOrder.update(current => current.filter((_, index) => index !== orderIndex));
+    this.photoError.set('');
+  }
   reorderPhotos(event: CdkDragDrop<string[]>): void {
     this.photoOrder.update(current => {
       const order = [...current];
@@ -172,7 +230,18 @@ export class AddVehicleDialogComponent implements OnDestroy {
   }
   save(): void {
     if (!this.canSave()) return;
-    const input = this.form.getRawValue();
+    const { featureGroups, includedGroups, ...formValue } = this.form.getRawValue();
+    const input: Omit<AddVehicleInput, 'imageUrl' | 'imageUrls'> = {
+      ...formValue,
+      features: featureGroups.map(feature => ({
+        group: feature.group.trim(),
+        items: this.featureItems(feature.items),
+      })),
+      included: includedGroups.map(included => ({
+        group: included.group.trim(),
+        items: this.featureItems(included.items),
+      })),
+    };
     input.carLocation = input.carLocation.trim();
     input.pickupLocations = [...new Set(input.pickupLocations.map(location => location.trim()).filter(Boolean))];
     const result: AddVehicleDialogResult = {
@@ -245,5 +314,8 @@ export class AddVehicleDialogComponent implements OnDestroy {
     } finally {
       image.close();
     }
+  }
+  private featureItems(value: string): string[] {
+    return [...new Set(value.split(/\r?\n|,/).map(item => item.trim()).filter(Boolean))];
   }
 }

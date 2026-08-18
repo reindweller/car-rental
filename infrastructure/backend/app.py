@@ -38,7 +38,7 @@ allowed_origins = {
     if origin.strip()
 }
 roles = {"Administrator", "Manager", "Agent"}
-vehicle_statuses = {"Available", "Rented", "Maintenance"}
+vehicle_statuses = {"Available", "Rented"}
 booking_statuses = {"Confirmed", "Active", "Pending", "Completed"}
 blocking_booking_statuses = {"Confirmed", "Active", "Pending"}
 photo_extensions = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
@@ -146,6 +146,70 @@ def normalize_car_location(payload):
     return location.strip()
 
 
+def normalize_feature_groups(payload):
+    groups = payload.get("features")
+    if isinstance(groups, str):
+        items = [item.strip() for item in groups.split(",") if item.strip()]
+        groups = [{"group": "Vehicle features", "items": items}]
+    if not isinstance(groups, list) or not 1 <= len(groups) <= 12:
+        raise ValueError("Vehicle features must contain between 1 and 12 groups.")
+    normalized = []
+    for feature_group in groups:
+        if not isinstance(feature_group, dict):
+            raise ValueError("Each vehicle feature group must include a header and feature list.")
+        group = feature_group.get("group")
+        items = feature_group.get("items")
+        if not isinstance(group, str) or not group.strip() or len(group.strip()) > 80:
+            raise ValueError("Each vehicle feature group needs a header of up to 80 characters.")
+        if not isinstance(items, list) or not 1 <= len(items) <= 50:
+            raise ValueError("Each vehicle feature group must contain between 1 and 50 features.")
+        clean_items = []
+        for item in items:
+            if not isinstance(item, str) or not item.strip() or len(item.strip()) > 120:
+                raise ValueError("Vehicle features must be text up to 120 characters each.")
+            value = item.strip()
+            if value not in clean_items:
+                clean_items.append(value)
+        normalized.append({"group": group.strip(), "items": clean_items})
+    return normalized
+
+
+def normalize_included_groups(payload):
+    groups = payload.get("included")
+    if isinstance(groups, str):
+        items = [item.strip() for item in groups.split(",") if item.strip()]
+        groups = [{"group": "Included", "items": items}]
+    elif isinstance(groups, list) and groups and all(isinstance(item, str) for item in groups):
+        groups = [{"group": "Included", "items": groups}]
+    if not isinstance(groups, list) or not 1 <= len(groups) <= 12:
+        raise ValueError("Included items must contain between 1 and 12 groups.")
+    normalized = []
+    for included_group in groups:
+        if not isinstance(included_group, dict):
+            raise ValueError("Each included group must have a header and item list.")
+        group = included_group.get("group")
+        items = included_group.get("items")
+        if not isinstance(group, str) or not group.strip() or len(group.strip()) > 80:
+            raise ValueError("Each included group needs a header of up to 80 characters.")
+        if not isinstance(items, list) or not 1 <= len(items) <= 50:
+            raise ValueError("Each included group must contain between 1 and 50 items.")
+        clean_items = []
+        for item in items:
+            if not isinstance(item, str) or not item.strip() or len(item.strip()) > 120:
+                raise ValueError("Included items must be text up to 120 characters each.")
+            value = item.strip()
+            if value not in clean_items:
+                clean_items.append(value)
+        normalized.append({"group": group.strip(), "items": clean_items})
+    return normalized
+
+
+def normalize_vehicle_groups(vehicle):
+    vehicle["features"] = normalize_feature_groups(vehicle)
+    vehicle["included"] = normalize_included_groups(vehicle)
+    return vehicle
+
+
 def scan_all(table):
     items = []
     kwargs = {}
@@ -169,7 +233,8 @@ def seed_vehicles():
 
 def list_vehicles():
     seed_vehicles()
-    return sorted(scan_all(vehicles_table), key=lambda item: (item.get("year", 0), item.get("name", "")), reverse=True)
+    vehicles = [normalize_vehicle_groups(vehicle) for vehicle in scan_all(vehicles_table)]
+    return sorted(vehicles, key=lambda item: (item.get("year", 0), item.get("name", "")), reverse=True)
 
 
 def parse_rental_dates(start_value, end_value):
@@ -222,11 +287,13 @@ def create_vehicle(payload):
     payload["imageUrl"] = image_urls[0]
     payload["carLocation"] = normalize_car_location(payload)
     payload["pickupLocations"] = normalize_pickup_locations(payload)
+    feature_groups = normalize_feature_groups(payload)
+    included_groups = normalize_included_groups(payload)
     identifier = int(time.time() * 1000)
-    items = [item.strip() for item in payload.pop("features", "").split(",") if item.strip()]
-    included = [item.strip() for item in payload.pop("included", "").split(",") if item.strip()]
+    payload.pop("features", None)
+    payload.pop("included", None)
     rules = [item.strip() for item in payload.pop("rules", "").split(",") if item.strip()]
-    if not items or not included or not rules:
+    if not rules:
         raise ValueError("Vehicle features, included items, and rules are required.")
     vehicle = {
         **payload,
@@ -243,8 +310,8 @@ def create_vehicle(payload):
         "turoUrl": "",
         "color": "#e8edf3",
         "emoji": payload["category"],
-        "features": [{"group": "Vehicle features", "items": items}],
-        "included": included,
+        "features": feature_groups,
+        "included": included_groups,
         "rules": rules,
         "extras": [],
         "reviews": [],
@@ -301,6 +368,8 @@ def update_vehicle(identifier, payload):
     payload["imageUrl"] = image_urls[0]
     payload["carLocation"] = normalize_car_location(payload)
     payload["pickupLocations"] = normalize_pickup_locations(payload)
+    payload["features"] = normalize_feature_groups(payload)
+    payload["included"] = normalize_included_groups(payload)
     payload["updatedAt"] = datetime.now(timezone.utc).isoformat()
     vehicles_table.put_item(Item=payload, ConditionExpression="attribute_exists(id)")
     return payload
@@ -402,7 +471,7 @@ def create_vehicle_review(identifier, payload):
         if error.response.get("Error", {}).get("Code") == "TransactionCanceledException":
             raise ConflictError("This booking was already reviewed, or the ratings changed. Please refresh and try again.") from error
         raise
-    return vehicles_table.get_item(Key={"id": vehicle_id}, ConsistentRead=True)["Item"]
+    return normalize_vehicle_groups(vehicles_table.get_item(Key={"id": vehicle_id}, ConsistentRead=True)["Item"])
 
 
 def rental_price(payload):

@@ -64,9 +64,9 @@
           </div>
         </section>
 
-        <section class="panel" id="features"><header><span><mat-icon>auto_awesome</mat-icon></span><div><h2>Vehicle features</h2><p>Everything included with this {{ vehicle.name }}.</p></div></header><div class="feature-groups">@for (group of vehicle.features; track group.group) {<div><h3>{{ group.group }}</h3><ul>@for (feature of group.items; track feature) {<li><mat-icon>check</mat-icon>{{ feature }}</li>}</ul></div>}</div></section>
+        <section class="panel" id="features"><header><span><mat-icon>auto_awesome</mat-icon></span><div><h2>Vehicle features</h2><p>Everything included with this {{ vehicle.name }}.</p></div></header><div class="feature-groups">@for (group of vehicle.features; track $index) {<div><h3>{{ group.group }}</h3><ul>@for (feature of group.items; track feature) {<li>{{ feature }}</li>}</ul></div>}</div></section>
 
-        <section class="panel" id="included"><header><span><mat-icon>inventory_2</mat-icon></span><div><h2>Included in the price</h2><p>Convenience and peace of mind come standard.</p></div></header><div class="included-grid">@for (item of vehicle.included; track item) {<div><mat-icon>check_circle</mat-icon><span>{{ item }}</span></div>}</div></section>
+        <section class="panel" id="included"><header><span><mat-icon>inventory_2</mat-icon></span><div><h2>Included in the price</h2><p>Convenience and peace of mind come standard.</p></div></header><div class="included-groups">@for (group of vehicle.included; track $index) {<div><h3>{{ group.group }}</h3><ul>@for (item of group.items; track item) {<li>{{ item }}</li>}</ul></div>}</div></section>
 
         <section class="panel" id="rules"><header><span><mat-icon>policy</mat-icon></span><div><h2>Rules of the road</h2><p>Please follow these guidelines throughout your trip.</p></div></header>@if (vehicle.rules?.length) {<div class="rules-list">@for (rule of vehicle.rules; track rule) {<div><mat-icon>rule</mat-icon><span>{{ rule }}</span></div>}</div>} @else {<div class="empty"><mat-icon>rule</mat-icon><div><b>No additional rules listed</b><span>Drive safely and follow all local traffic laws.</span></div></div>}</section>
 
