@@ -61,6 +61,8 @@ export interface Booking {
   startDate?: string;
   endDate?: string;
   pickupLocation?: string;
+  fulfillmentMode?: 'pickup' | 'delivery';
+  deliveryDistanceMiles?: number;
   period: string;
   total: number;
   paymentIntentId?: string;

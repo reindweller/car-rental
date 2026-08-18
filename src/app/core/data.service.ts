@@ -46,6 +46,7 @@ export interface CreateBookingInput {
   startDate: string;
   endDate: string;
   pickupLocation: string;
+  fulfillmentMode: 'pickup' | 'delivery';
   coverage: boolean;
   paymentIntentId: string;
 }
@@ -56,6 +57,15 @@ export interface CreatePaymentIntentInput {
   endDate: string;
   coverage: boolean;
   email: string;
+  pickupLocation: string;
+  fulfillmentMode: 'pickup' | 'delivery';
+}
+
+export interface DeliveryCheckResponse {
+  eligible: boolean;
+  distanceMiles: number;
+  maxDistanceMiles: number;
+  address: string;
 }
 
 export interface PaymentIntentResponse {
@@ -158,6 +168,10 @@ export class DataService {
   async checkAvailability(startDate: string, endDate: string): Promise<AvailabilityResponse> {
     const params = new HttpParams().set('start', startDate).set('end', endDate);
     return firstValueFrom(this.http.get<AvailabilityResponse>(`${this.apiUrl}/availability`, { params }));
+  }
+
+  async checkDelivery(vehicleId: number, address: string): Promise<DeliveryCheckResponse> {
+    return firstValueFrom(this.http.post<DeliveryCheckResponse>(`${this.apiUrl}/delivery/check`, { vehicleId, address }));
   }
 
   async addVehicleReview(vehicleId: number, input: CreateReviewInput): Promise<Vehicle> {

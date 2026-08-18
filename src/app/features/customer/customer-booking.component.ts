@@ -62,6 +62,19 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   readonly startTime = signal('10:00');
   readonly endTime = signal('10:00');
   readonly pickupLocation = signal(this.requestedLocation);
+  readonly fulfillmentMode = signal<'pickup' | 'delivery'>('pickup');
+  readonly deliveryAddress = signal('');
+  readonly deliveryChecking = signal(false);
+  readonly deliveryError = signal('');
+  readonly deliveryDistance = signal<number | null>(null);
+  private readonly verifiedDeliveryAddress = signal('');
+  readonly pickupOptions = computed(() => [...new Set([
+    this.selectedVehicle().carLocation,
+    ...(this.selectedVehicle().pickupLocations ?? []),
+  ].filter((location): location is string => !!location))]);
+  readonly locationReady = computed(() => this.fulfillmentMode() === 'pickup'
+    ? this.pickupOptions().includes(this.pickupLocation())
+    : !!this.deliveryAddress().trim() && this.verifiedDeliveryAddress() === this.deliveryAddress().trim() && this.deliveryDistance() !== null && this.deliveryDistance()! <= 20);
   readonly vehicleDetailQueryParams = computed<Params>(() => {
     const params: Params = {};
     const location = this.pickupLocation();
@@ -116,7 +129,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   readonly total = computed(() => this.basePrice() + this.coveragePrice() + this.taxes());
   readonly selectedVehicleAvailable = computed(() => !this.unavailableVehicleIds().has(this.selectedVehicle().id));
   readonly availableVehicleCount = computed(() => this.availableVehicles.filter(vehicle => this.isVehicleAvailable(vehicle)).length);
-  readonly canBook = computed(() => this.datesComplete() && this.availabilityChecked() && this.selectedVehicleAvailable() && this.formValid() && this.paymentReady() && this.cardComplete());
+  readonly canBook = computed(() => this.datesComplete() && this.availabilityChecked() && this.selectedVehicleAvailable() && this.locationReady() && this.formValid() && this.paymentReady() && this.cardComplete());
   private stripe: StripeInstance | null = null;
   private cardNumberElement: StripeCardElement | null = null;
   private cardExpiryElement: StripeCardElement | null = null;
@@ -145,7 +158,8 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
       this.endDate.set(requestedEnd.date);
       this.endTime.set(requestedEnd.time);
     }
-    if (!this.pickupLocation()) this.pickupLocation.set(this.defaultPickupLocation(this.selectedVehicle()));
+    if (!this.pickupOptions().includes(this.pickupLocation())) this.pickupLocation.set(this.pickupOptions()[0] ?? '');
+    if (!this.pickupOptions().length) this.fulfillmentMode.set('delivery');
     this.customerForm.statusChanges.subscribe(() => this.formValid.set(this.customerForm.valid));
   }
 
@@ -163,7 +177,48 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   selectVehicle(vehicle: Vehicle): void {
     if (!this.isVehicleAvailable(vehicle)) return;
     this.selectedVehicle.set(vehicle);
-    if (!this.requestedLocation) this.pickupLocation.set(this.defaultPickupLocation(vehicle));
+    const locations = [vehicle.carLocation, ...(vehicle.pickupLocations ?? [])].filter((location): location is string => !!location);
+    this.pickupLocation.set(locations[0] ?? '');
+    this.fulfillmentMode.set(locations.length ? 'pickup' : 'delivery');
+    this.resetDeliveryCheck();
+  }
+  selectFulfillment(mode: 'pickup' | 'delivery'): void {
+    this.fulfillmentMode.set(mode);
+    this.deliveryError.set('');
+    if (mode === 'pickup' && !this.pickupOptions().includes(this.pickupLocation())) {
+      this.pickupLocation.set(this.pickupOptions()[0] ?? '');
+    }
+  }
+  selectPickupLocation(location: string): void {
+    this.pickupLocation.set(location);
+  }
+  deliveryAddressChanged(address: string): void {
+    this.deliveryAddress.set(address);
+    this.resetDeliveryCheck();
+  }
+  async checkDeliveryAddress(): Promise<void> {
+    const address = this.deliveryAddress().trim();
+    if (address.length < 8) {
+      this.deliveryError.set('Enter a complete delivery address.');
+      return;
+    }
+    this.deliveryChecking.set(true);
+    this.deliveryError.set('');
+    try {
+      const result = await this.data.checkDelivery(this.selectedVehicle().id, address);
+      this.deliveryDistance.set(result.distanceMiles);
+      if (!result.eligible) {
+        this.deliveryError.set(`This address is ${result.distanceMiles.toFixed(1)} miles away. Delivery is limited to ${result.maxDistanceMiles} miles.`);
+        return;
+      }
+      this.deliveryAddress.set(result.address);
+      this.verifiedDeliveryAddress.set(result.address);
+      this.pickupLocation.set(result.address);
+    } catch (error) {
+      this.deliveryError.set(this.data.errorMessage(error));
+    } finally {
+      this.deliveryChecking.set(false);
+    }
   }
   updateStartDate(date: Date | null): void {
     this.startDate.set(date);
@@ -210,6 +265,8 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
           endDate,
           coverage: this.coverage(),
           email: this.customerForm.controls.email.value,
+          pickupLocation: this.fulfillmentMode() === 'delivery' ? this.deliveryAddress().trim() : this.pickupLocation(),
+          fulfillmentMode: this.fulfillmentMode(),
         });
         const payment = await this.stripe.confirmCardPayment(intent.clientSecret, {
           payment_method: {
@@ -233,6 +290,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
         startDate,
         endDate,
         pickupLocation: this.pickupLocation(),
+        fulfillmentMode: this.fulfillmentMode(),
         coverage: this.coverage(),
         paymentIntentId: this.paidPaymentIntentId,
       });
@@ -253,13 +311,19 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
     this.startTime.set('10:00');
     this.endTime.set('10:00');
     this.customerForm.reset();
+    this.fulfillmentMode.set(this.pickupOptions().length ? 'pickup' : 'delivery');
+    this.pickupLocation.set(this.pickupOptions()[0] ?? '');
+    this.deliveryAddress.set('');
+    this.resetDeliveryCheck();
     this.paidPaymentIntentId = '';
     this.cardNumberElement?.clear();
     this.cardExpiryElement?.clear();
     this.cardCvcElement?.clear();
   }
-  private defaultPickupLocation(vehicle: Vehicle): string {
-    return vehicle.carLocation || vehicle.pickupLocations?.[0] || 'Location confirmed after booking';
+  private resetDeliveryCheck(): void {
+    this.deliveryDistance.set(null);
+    this.verifiedDeliveryAddress.set('');
+    this.deliveryError.set('');
   }
   private syncBookingDatesInUrl(): void {
     this.router.navigate([], {

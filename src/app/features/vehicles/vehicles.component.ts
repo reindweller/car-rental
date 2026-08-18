@@ -60,7 +60,7 @@ export class VehiclesComponent {
           ...result.input,
           imageUrl: imageUrls[0],
           imageUrls,
-          rules: result.input.rules.split(',').map(item => item.trim()).filter(Boolean),
+          rules: result.input.rules.split(/\r?\n|,/).map(item => item.trim()).filter(Boolean),
         });
         this.snack.open(`${result.input.year} ${result.input.name} updated`, 'Dismiss', { duration: 3500 });
       } catch {

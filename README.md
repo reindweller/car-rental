@@ -51,10 +51,11 @@ To enable payments, create Stripe test-mode API keys, set them for the current P
 ```powershell
 $env:STRIPE_PUBLISHABLE_KEY = "pk_test_..."
 $env:STRIPE_SECRET_KEY = "sk_test_..."
+$env:GOOGLE_MAPS_API_KEY = "..." # Enable the Google Geocoding API for 20-mile delivery checks
 .\infrastructure\deploy.ps1 -Profile reindweller -Region ap-southeast-1
 ```
 
-The secret key is sent only to the Lambda environment. The deploy script writes only the safe publishable key to the Angular environment file. Do not commit or place an `sk_test_` or `sk_live_` key in frontend code.
+The Stripe secret and Google Maps keys are sent only to the Lambda environment. The deploy script writes only the safe Stripe publishable key to the Angular environment file. Do not commit secret keys or place them in frontend code.
 
 ### Test a payment
 

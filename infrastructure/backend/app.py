@@ -44,6 +44,9 @@ blocking_booking_statuses = {"Confirmed", "Active", "Pending"}
 photo_extensions = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 max_photo_bytes = 8 * 1024 * 1024
 stripe_secret_key = os.environ.get("STRIPE_SECRET_KEY", "")
+google_maps_api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+delivery_radius_miles = 20
+geocode_cache = {}
 
 
 class ConflictError(Exception):
@@ -278,6 +281,74 @@ def vehicle_availability(start_value, end_value):
     }
 
 
+def geocode_address(address):
+    normalized = str(address or "").strip()
+    if len(normalized) < 8 or len(normalized) > 250:
+        raise ValueError("Enter a complete delivery address of up to 250 characters.")
+    if normalized in geocode_cache:
+        return geocode_cache[normalized]
+    if not google_maps_api_key:
+        raise ValueError("Delivery distance checking is not configured.")
+    query = urlencode({"address": normalized, "key": google_maps_api_key})
+    try:
+        with urlopen(f"https://maps.googleapis.com/maps/api/geocode/json?{query}", timeout=8) as result:
+            response_body = json.loads(result.read().decode())
+    except (HTTPError, OSError, ValueError) as error:
+        raise ValueError("The delivery address could not be checked. Please try again.") from error
+    if response_body.get("status") != "OK" or not response_body.get("results"):
+        raise ValueError("We could not find that delivery address. Check it and try again.")
+    match = response_body["results"][0]
+    location = match["geometry"]["location"]
+    geocoded = {
+        "address": match.get("formatted_address", normalized),
+        "latitude": float(location["lat"]),
+        "longitude": float(location["lng"]),
+    }
+    if len(geocode_cache) >= 100:
+        geocode_cache.clear()
+    geocode_cache[normalized] = geocoded
+    return geocoded
+
+
+def delivery_check(payload):
+    require_fields(payload, ["vehicleId", "address"])
+    vehicle = vehicles_table.get_item(Key={"id": int(payload["vehicleId"])}).get("Item")
+    if not vehicle:
+        raise ValueError("The selected vehicle was not found.")
+    if not vehicle.get("carLocation"):
+        raise ValueError("Delivery is unavailable because this vehicle has no home location.")
+    origin = geocode_address(vehicle["carLocation"])
+    destination = geocode_address(payload["address"])
+    lat1, lon1 = math.radians(origin["latitude"]), math.radians(origin["longitude"])
+    lat2, lon2 = math.radians(destination["latitude"]), math.radians(destination["longitude"])
+    delta_lat = lat2 - lat1
+    delta_lon = lon2 - lon1
+    haversine = math.sin(delta_lat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+    miles = 3958.7613 * 2 * math.asin(math.sqrt(haversine))
+    return {
+        "eligible": miles <= delivery_radius_miles,
+        "distanceMiles": round(miles, 1),
+        "maxDistanceMiles": delivery_radius_miles,
+        "address": destination["address"],
+    }
+
+
+def validate_fulfillment(payload, vehicle):
+    mode = str(payload.get("fulfillmentMode", "pickup")).lower()
+    address = str(payload.get("pickupLocation", "")).strip()
+    if mode == "pickup":
+        allowed = [vehicle.get("carLocation"), *(vehicle.get("pickupLocations") or [])]
+        if not address or address not in allowed:
+            raise ValueError("Choose a valid pickup location for this vehicle.")
+        return {"mode": mode, "address": address, "distanceMiles": None}
+    if mode != "delivery":
+        raise ValueError("Choose pickup or delivery.")
+    result = delivery_check({"vehicleId": vehicle["id"], "address": address})
+    if not result["eligible"]:
+        raise ValueError(f"Delivery is limited to {delivery_radius_miles} miles from the vehicle location.")
+    return {"mode": mode, "address": result["address"], "distanceMiles": result["distanceMiles"]}
+
+
 def create_vehicle(payload):
     require_fields(payload, ["name", "year", "trim", "category", "price", "status", "plate"])
     if payload["status"] not in vehicle_statuses:
@@ -292,7 +363,7 @@ def create_vehicle(payload):
     identifier = int(time.time() * 1000)
     payload.pop("features", None)
     payload.pop("included", None)
-    rules = [item.strip() for item in payload.pop("rules", "").split(",") if item.strip()]
+    rules = [item.strip() for item in re.split(r"[\r\n,]+", payload.pop("rules", "")) if item.strip()]
     if not rules:
         raise ValueError("Vehicle features, included items, and rules are required.")
     vehicle = {
@@ -484,12 +555,13 @@ def rental_price(payload):
         raise ValueError("The selected vehicle is already booked for those dates.")
     if not isinstance(payload.get("coverage"), bool):
         raise ValueError("Coverage must be true or false.")
+    fulfillment = validate_fulfillment(payload, vehicle)
     rental_days = math.ceil((end - start).total_seconds() / 86400)
     subtotal = Decimal(str(vehicle["price"])) * rental_days
     if payload["coverage"]:
         subtotal += Decimal("18") * rental_days
     total = (subtotal * Decimal("1.08")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    return vehicle, start, end, total, int((total * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return vehicle, start, end, total, int((total * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)), fulfillment
 
 
 def stripe_request(method, path, params=None):
@@ -517,7 +589,7 @@ def stripe_request(method, path, params=None):
 
 
 def create_payment_intent(payload):
-    vehicle, _start, _end, _total, amount = rental_price(payload)
+    vehicle, _start, _end, _total, amount, fulfillment = rental_price(payload)
     params = {
         "amount": amount,
         "currency": "usd",
@@ -527,6 +599,8 @@ def create_payment_intent(payload):
         "metadata[startDate]": str(payload["startDate"]),
         "metadata[endDate]": str(payload["endDate"]),
         "metadata[coverage]": str(payload["coverage"]).lower(),
+        "metadata[fulfillmentMode]": fulfillment["mode"],
+        "metadata[pickupLocation]": fulfillment["address"],
     }
     if str(payload.get("email", "")).strip():
         params["receipt_email"] = str(payload["email"]).strip()
@@ -541,7 +615,7 @@ def create_payment_intent(payload):
 
 def create_booking(payload):
     require_fields(payload, ["customer", "email", "phone", "vehicleId", "startDate", "endDate", "paymentIntentId"])
-    vehicle, start, end, total, amount = rental_price(payload)
+    vehicle, start, end, total, amount, fulfillment = rental_price(payload)
     payment_intent_id = str(payload["paymentIntentId"])
     if not payment_intent_id.startswith("pi_"):
         raise ValueError("Invalid payment reference.")
@@ -558,6 +632,8 @@ def create_booking(payload):
         "startDate": str(payload["startDate"]),
         "endDate": str(payload["endDate"]),
         "coverage": str(payload["coverage"]).lower(),
+        "fulfillmentMode": fulfillment["mode"],
+        "pickupLocation": fulfillment["address"],
     }
     if intent.get("status") != "succeeded":
         raise ValueError("Payment has not completed.")
@@ -573,6 +649,9 @@ def create_booking(payload):
         "vehicle": vehicle["name"],
         "period": f"{start.strftime('%b %-d, %-I:%M %p')} – {end.strftime('%b %-d, %-I:%M %p')}",
         "total": total,
+        "fulfillmentMode": fulfillment["mode"],
+        "pickupLocation": fulfillment["address"],
+        "deliveryDistanceMiles": fulfillment["distanceMiles"],
         "paymentIntentId": payment_intent_id,
         "paymentStatus": "Paid",
         "status": "Confirmed",
@@ -693,6 +772,8 @@ def handler(event, _context):
         if path == "/availability" and method == "GET":
             query = event.get("queryStringParameters") or {}
             return reply(200, vehicle_availability(query.get("start"), query.get("end")))
+        if path == "/delivery/check" and method == "POST":
+            return reply(200, delivery_check(body_of(event)))
         if path == "/vehicles" and method == "POST":
             return reply(201, create_vehicle(body_of(event)))
         if path == "/vehicles/{id}" and method == "PUT":

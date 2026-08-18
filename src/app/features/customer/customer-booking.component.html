@@ -3,7 +3,7 @@
 
   @if (confirmationId()) {
     <main class="confirmation">
-      <div class="success-icon"><mat-icon>check</mat-icon></div><span>Payment received · Booking confirmed</span><h1>You’re ready to drive.</h1><p>We sent the details to <b>{{ customerForm.controls.email.value }}</b>. Bring your driver’s license when you pick up the car.</p>
+      <div class="success-icon"><mat-icon>check</mat-icon></div><span>Payment received · Booking confirmed</span><h1>You’re ready to drive.</h1><p>We sent the details to <b>{{ customerForm.controls.email.value }}</b>. Bring your driver’s license when {{ fulfillmentMode() === 'delivery' ? 'the car is delivered' : 'you pick up the car' }}.</p>
       <article><div class="car-thumb" [style.background]="selectedVehicle().color"><img [src]="selectedVehicle().imageUrl" [alt]="selectedVehicle().name"></div><div><small>Booking reference</small><strong>{{ confirmationId() }}</strong><span>{{ selectedVehicle().year }} {{ selectedVehicle().name }} · {{ startDate() | date:'MMM d' }}, {{ timeLabel(startTime()) }} – {{ endDate() | date:'MMM d, y' }}, {{ timeLabel(endTime()) }}</span></div><b>{{ total() | currency }}</b></article>
       <div class="confirmation-actions"><a mat-flat-button routerLink="/">Back to home</a><button mat-stroked-button (click)="bookAnother()">Book another car</button></div>
     </main>
@@ -11,7 +11,7 @@
     <main class="booking-shell">
       <div class="booking-heading"><a routerLink="/"><mat-icon>arrow_back</mat-icon>Back to home</a><span>Book your drive</span><h1>Choose your car and dates</h1><p>Clear pricing, instant confirmation, and free changes up to 24 hours before pickup.</p></div>
 
-      <div class="steps"><span class="active"><b>1</b>Car & dates</span><i></i><span [class.active]="datesComplete()"><b>2</b>Your details</span><i></i><span><b>3</b>Confirmation</span></div>
+      <div class="steps"><span class="active"><b>1</b>Car & dates</span><i></i><span [class.active]="datesComplete()"><b>2</b>Pickup or delivery</span><i></i><span [class.active]="locationReady()"><b>3</b>Your details</span><i></i><span><b>4</b>Confirmation</span></div>
 
       <div class="booking-grid">
         <div class="booking-main">
@@ -52,19 +52,42 @@
             </div>
             @if (dateError()) { <p class="date-error"><mat-icon>error_outline</mat-icon>{{ dateError() }}</p> }
             <div class="date-cards">
-              <div><span><mat-icon>north_east</mat-icon></span><p><small>Pick-up</small><b>{{ startDate() ? (startDate() | date:'EEE, MMM d') : 'Select a date' }}</b><em>{{ timeLabel(startTime()) }} · {{ pickupLocation() }}</em></p></div>
+              <div><span><mat-icon>north_east</mat-icon></span><p><small>{{ fulfillmentMode() === 'delivery' ? 'Delivery' : 'Pick-up' }}</small><b>{{ startDate() ? (startDate() | date:'EEE, MMM d') : 'Select a date' }}</b><em>{{ timeLabel(startTime()) }} · {{ fulfillmentMode() === 'delivery' ? (deliveryAddress() || 'Enter delivery address') : pickupLocation() }}</em></p></div>
               <mat-icon>arrow_forward</mat-icon>
               <div><span><mat-icon>south_west</mat-icon></span><p><small>Return</small><b>{{ endDate() ? (endDate() | date:'EEE, MMM d') : 'Select a date' }}</b><em>{{ timeLabel(endTime()) }} · Same location</em></p></div>
             </div>
           </section>
 
+          <section class="panel fulfillment-panel">
+            <header><div><span>Step 3</span><h2>Choose pickup or delivery</h2></div><small><mat-icon>distance</mat-icon>Delivery within 20 miles</small></header>
+            <div class="fulfillment-modes">
+              <button type="button" [class.selected]="fulfillmentMode() === 'pickup'" [disabled]="!pickupOptions().length" (click)="selectFulfillment('pickup')"><mat-icon>location_on</mat-icon><span><b>Pick up the car</b><small>Choose one of the available pickup locations</small></span><mat-icon>check_circle</mat-icon></button>
+              <button type="button" [class.selected]="fulfillmentMode() === 'delivery'" (click)="selectFulfillment('delivery')"><mat-icon>local_shipping</mat-icon><span><b>Bring the car to me</b><small>Available for addresses within a 20-mile radius</small></span><mat-icon>check_circle</mat-icon></button>
+            </div>
+            @if (fulfillmentMode() === 'pickup') {
+              <div class="pickup-options">
+                @for (location of pickupOptions(); track location) {
+                  <button type="button" [class.selected]="pickupLocation() === location" (click)="selectPickupLocation(location)"><mat-icon>{{ $first ? 'garage' : 'location_on' }}</mat-icon><span><b>{{ $first ? 'Vehicle location' : 'Pickup location ' + ($index + 1) }}</b><small>{{ location }}</small></span><mat-icon>check_circle</mat-icon></button>
+                }
+              </div>
+            } @else {
+              <div class="delivery-address">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Delivery address</mat-label><mat-icon matPrefix>home_pin</mat-icon><input matInput autocomplete="street-address" [value]="deliveryAddress()" (input)="deliveryAddressChanged($any($event.target).value)" placeholder="Street, city, state, ZIP code"></mat-form-field>
+                <button type="button" mat-flat-button [disabled]="deliveryChecking()" (click)="checkDeliveryAddress()"><mat-icon>{{ deliveryChecking() ? 'hourglass_top' : 'distance' }}</mat-icon>{{ deliveryChecking() ? 'Checking…' : 'Check address' }}</button>
+              </div>
+              @if (deliveryDistance() !== null && locationReady()) { <p class="delivery-message success"><mat-icon>check_circle</mat-icon>Delivery available — {{ deliveryDistance()!.toFixed(1) }} miles from the vehicle.</p> }
+              @if (deliveryError()) { <p class="delivery-message error"><mat-icon>error_outline</mat-icon>{{ deliveryError() }}</p> }
+              <p class="delivery-note"><mat-icon>info_outline</mat-icon>Distance is measured from the vehicle’s home location. The same address will be used for return collection.</p>
+            }
+          </section>
+
           <section class="panel details-panel">
-            <header><div><span>Step 3</span><h2>Your details</h2></div><small>All fields are required</small></header>
+            <header><div><span>Step 4</span><h2>Your details</h2></div><small>All fields are required</small></header>
             <form [formGroup]="customerForm"><div class="field-row"><mat-form-field appearance="outline"><mat-label>First name</mat-label><input matInput formControlName="firstName" autocomplete="given-name"></mat-form-field><mat-form-field appearance="outline"><mat-label>Last name</mat-label><input matInput formControlName="lastName" autocomplete="family-name"></mat-form-field></div><mat-form-field appearance="outline"><mat-label>Email address</mat-label><mat-icon matPrefix>mail_outline</mat-icon><input matInput type="email" formControlName="email" autocomplete="email"></mat-form-field><mat-form-field appearance="outline"><mat-label>Mobile number</mat-label><mat-icon matPrefix>phone</mat-icon><input matInput formControlName="phone" autocomplete="tel" placeholder="+63 900 000 0000"></mat-form-field></form>
           </section>
 
           <section class="panel payment-panel">
-            <header><div><span>Step 4</span><h2>Payment</h2></div><small><mat-icon>lock</mat-icon>Secured by Stripe</small></header>
+            <header><div><span>Step 5</span><h2>Payment</h2></div><small><mat-icon>lock</mat-icon>Secured by Stripe</small></header>
             <div class="payment-fields" [class.loading]="!paymentReady()">
               <div class="payment-field card-number-field">
                 <label for="card-number-element">Card number</label>
@@ -102,6 +125,7 @@
             <div class="total"><span>Total<small>{{ rentalDays() ? rentalDays() + ' rental days' : 'Select dates to calculate' }}</small></span><strong>{{ total() | currency }}</strong></div>
             <button mat-flat-button class="confirm" [disabled]="!canBook() || submitting()" (click)="confirmBooking()">{{ submitting() ? 'Processing payment…' : ('Pay ' + (total() | currency) + ' & confirm') }} <mat-icon>arrow_forward</mat-icon></button>
             @if (!datesComplete()) { <p class="hint"><mat-icon>info_outline</mat-icon>Select pick-up and return dates to continue.</p> }
+            @else if (!locationReady()) { <p class="hint"><mat-icon>info_outline</mat-icon>Choose a pickup location or verify a delivery address.</p> }
             @else if (!cardComplete()) { <p class="hint"><mat-icon>info_outline</mat-icon>Enter your card details to continue.</p> }
             <div class="assurances"><span><mat-icon>verified_user</mat-icon>Secure checkout</span><span><mat-icon>event_busy</mat-icon>Free changes up to 24h</span></div>
           </section>

@@ -89,7 +89,7 @@
       }
       <button type="button" mat-stroked-button class="add-feature-group" (click)="addIncludedGroup()" [disabled]="includedGroups.length >= 12"><mat-icon>add</mat-icon>Add included group</button>
     </div>
-    <mat-form-field class="listing-text-field" appearance="outline"><mat-label>Rules of the road</mat-label><textarea matInput formControlName="rules" rows="3" placeholder="No smoking, Return with a full tank, No pets"></textarea><mat-hint>Separate each rule with a comma</mat-hint><mat-error>Add at least one rule</mat-error></mat-form-field>
+    <mat-form-field class="listing-text-field" appearance="outline"><mat-label>Rules of the road</mat-label><textarea matInput formControlName="rules" rows="5" placeholder="No smoking&#10;Return with a full tank&#10;No pets"></textarea><mat-hint>Enter one rule per line</mat-hint><mat-error>Add at least one rule</mat-error></mat-form-field>
   </form>
 </mat-dialog-content>
 <mat-dialog-actions align="end"><button mat-button mat-dialog-close>Cancel</button><button mat-flat-button [disabled]="!canSave()" (click)="save()"><mat-icon>{{ vehicle ? 'save' : 'add' }}</mat-icon>{{ vehicle ? 'Save changes' : 'Add vehicle' }}</button></mat-dialog-actions>

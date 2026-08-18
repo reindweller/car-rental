@@ -6,6 +6,7 @@ param(
   [string[]]$AllowedOrigins = @("http://localhost:4200"),
   [string]$StripePublishableKey = $env:STRIPE_PUBLISHABLE_KEY,
   [string]$StripeSecretKey = $env:STRIPE_SECRET_KEY,
+  [string]$GoogleMapsApiKey = $env:GOOGLE_MAPS_API_KEY,
   [string]$AdminEmail = ""
 )
 
@@ -25,7 +26,7 @@ aws cloudformation deploy `
   --template-file $PackagedTemplate `
   --stack-name $StackName `
   --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND `
-  --parameter-overrides "AllowedOrigins=$AllowedOriginsValue" "StripePublishableKey=$StripePublishableKey" "StripeSecretKey=$StripeSecretKey" `
+  --parameter-overrides "AllowedOrigins=$AllowedOriginsValue" "StripePublishableKey=$StripePublishableKey" "StripeSecretKey=$StripeSecretKey" "GoogleMapsApiKey=$GoogleMapsApiKey" `
   --no-fail-on-empty-changeset `
   --profile $Profile `
   --region $Region

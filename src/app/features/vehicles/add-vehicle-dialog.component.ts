@@ -75,7 +75,7 @@ export class AddVehicleDialogComponent implements OnDestroy {
       category: this.vehicle.category, plate: this.vehicle.plate, seats: this.vehicle.seats,
       mpg: this.vehicle.mpg, fuel: this.vehicle.fuel, transmission: this.vehicle.transmission,
       price: this.vehicle.price, status: this.vehicle.status, carLocation: this.vehicle.carLocation ?? '',
-      rules: (this.vehicle.rules ?? []).join(', '),
+      rules: (this.vehicle.rules ?? []).join('\n'),
     });
     this.vehicle.features.forEach(feature => this.addFeatureGroup(feature.group, feature.items));
     if (!this.featureGroups.length) this.addFeatureGroup();

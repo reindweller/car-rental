@@ -16,6 +16,11 @@ Parameters:
     Default: ''
     NoEcho: true
     Description: Stripe secret key (use an sk_test key while testing)
+  GoogleMapsApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Google Maps Platform key with the Geocoding API enabled
 
 Globals:
   Function:
@@ -31,6 +36,7 @@ Globals:
         PHOTOS_BUCKET: !Ref VehiclePhotosBucket
         ALLOWED_ORIGINS: !Join [',', !Ref AllowedOrigins]
         STRIPE_SECRET_KEY: !Ref StripeSecretKey
+        GOOGLE_MAPS_API_KEY: !Ref GoogleMapsApiKey
 
 Resources:
   UserPool:
@@ -224,6 +230,14 @@ Resources:
             RestApiId: !Ref Api
             Path: /availability
             Method: GET
+            Auth:
+              Authorizer: NONE
+        CheckDelivery:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /delivery/check
+            Method: POST
             Auth:
               Authorizer: NONE
         CreateVehicle:

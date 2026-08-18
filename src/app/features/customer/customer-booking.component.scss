@@ -5,6 +5,7 @@
 .mini-car{overflow:hidden}.mini-car img,.selected-car img,.car-thumb img{width:100%;height:100%;object-fit:cover}.selected-car{overflow:hidden}.selected-car>img{width:100%;height:100%;object-fit:cover}.selected-car>span{z-index:1}.listing-rating{display:flex;align-items:center;gap:4px;margin:-4px 0 11px;font-size:8px}.listing-rating mat-icon{font-size:15px;width:15px;height:15px;color:#f59e0b}.listing-rating span{color:#94a3b8}.guest-review{display:flex;gap:7px;padding:10px;margin:12px 0;background:#f8fafc;border-radius:9px;color:#64748b}.guest-review>mat-icon{font-size:17px;width:17px;height:17px;color:#93a4bb}.guest-review p{display:grid;margin:0;font-size:8px;line-height:1.5}.guest-review small{margin-top:4px;color:#94a3b8}.car-thumb{overflow:hidden}
 @media(max-width:880px){.summary .listing-rating,.summary .guest-review{display:none}}
 
+
 /* Match the public landing-page header branding. */
 .site-header { height: 78px; }
 .site-header .brand > span {
