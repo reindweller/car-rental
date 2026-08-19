@@ -87,6 +87,26 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
     return params;
   });
   readonly coverage = signal(true);
+  readonly agreementVersion = '2026-08-19';
+  readonly agreementSections = [
+    { title: 'Eligibility and authorized drivers.', body: 'Renter confirms that they meet the disclosed minimum rental age, hold a current driver’s license valid for the vehicle, and will present it before receiving the vehicle. Only Renter and drivers approved in writing by Owner may drive. Renter is responsible for every authorized driver’s compliance.' },
+    { title: 'Rental period and return.', body: 'The rental begins and ends at the dates, times, and location shown in the booking. Renter will return the vehicle, keys, documents, and accessories on time and in the condition received, ordinary wear excepted. An extension requires Owner’s prior approval and may incur additional charges.' },
+    { title: 'Charges and payment authorization.', body: 'Renter will pay the displayed rental price, taxes, selected extras, and other lawful amounts arising from the rental, including approved extension, late-return, missing fuel or charge, excessive cleaning, smoking remediation, lost key, toll, citation, impound, and damage charges. Renter authorizes Owner to charge the payment method on file after providing an itemization where required by law.' },
+    { title: 'Vehicle use.', body: 'The vehicle must be driven carefully and lawfully. It may not be used by an unauthorized or unlicensed driver; while impaired; for racing, speed testing, driver training, towing, pushing, off-road use, unlawful activity, carrying hazardous materials, or transporting persons or property for hire; or outside the permitted rental area without written approval. Seat belts and child-restraint laws must be followed.' },
+    { title: 'Fuel, charging, mileage, tolls, and citations.', body: 'Renter will return the vehicle with the same fuel or battery level recorded at handover. Any mileage limit separately disclosed in the booking applies; if none is disclosed, no additional mileage limit applies. Renter is responsible for tolls, parking charges, traffic or camera violations, and related lawful administration fees incurred during the rental.' },
+    { title: 'Condition, loss, and damage.', body: 'Renter will inspect the vehicle at handover, promptly report existing damage, secure the vehicle, and take reasonable steps to prevent loss. To the extent permitted by law, Renter is responsible for loss of or damage to the vehicle during the rental, towing, storage, loss of use, and reasonable recovery costs, subject to applicable law and any protection plan expressly selected in the booking. A protection plan is subject to its stated limits and exclusions and is not a substitute for legally required insurance.' },
+    { title: 'Accidents, theft, and breakdowns.', body: 'Renter must stop safely, contact emergency services when appropriate, notify Owner as soon as possible, cooperate with police and insurers, obtain relevant party and witness information, and not admit fault or arrange repairs without approval. For a breakdown, Renter must stop using the vehicle when continued use could cause damage and contact Owner for instructions.' },
+    { title: 'Insurance.', body: 'Renter and each authorized driver must maintain any motor-vehicle insurance required by applicable law. Owner provides only the insurance or protection expressly identified in the booking documents. Renter will cooperate with any claim investigation.' },
+    { title: 'Cancellation, no-show, and late return.', body: 'The cancellation and refund terms presented at booking or in the confirmation apply. Failure to collect the vehicle, or returning it late without approval, may result in cancellation or additional charges. Renter must contact Owner immediately if the return will be late.' },
+    { title: 'Default and recovery.', body: 'Owner may end the rental and recover the vehicle, where lawful and without breaching the peace, if Renter materially violates this Agreement, obtained the vehicle through fraud, abandons it, or uses it in a way that threatens safety or the vehicle.' },
+    { title: 'Liability and indemnity.', body: 'Each party remains responsible to the extent required by applicable law. To the extent lawful, Renter will reimburse Owner for third-party claims, losses, and expenses caused by Renter’s or an authorized driver’s breach, negligence, or unlawful use. Nothing in this Agreement excludes liability that cannot legally be excluded.' },
+    { title: 'Privacy and vehicle data.', body: 'Owner may use booking, identity, payment-reference, location, telematics, and vehicle-condition data to provide the rental, protect people and property, prevent fraud, recover the vehicle, process claims, and comply with law, in accordance with the applicable privacy notice.' },
+    { title: 'General terms.', body: 'This Agreement, the booking summary, the vehicle condition record, and any signed addenda form the entire agreement. If a provision is unenforceable, the remainder stays effective. Applicable law and the competent courts where Owner principally operates govern, unless consumer law requires otherwise. Changes must be agreed in writing, including electronically.' },
+    { title: 'Electronic consent.', body: 'By checking the acceptance box, Renter confirms they had an opportunity to read this Agreement, the booking information is accurate, and their electronic acceptance is intended as a signature.' },
+  ];
+  readonly agreementAccepted = signal(false);
+  readonly agreementAcceptedAt = signal('');
+  readonly downloadingAgreement = signal(false);
   readonly paymentReady = signal(false);
   readonly cardNumberComplete = signal(false);
   readonly cardExpiryComplete = signal(false);
@@ -129,7 +149,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   readonly total = computed(() => this.basePrice() + this.coveragePrice() + this.taxes());
   readonly selectedVehicleAvailable = computed(() => !this.unavailableVehicleIds().has(this.selectedVehicle().id));
   readonly availableVehicleCount = computed(() => this.availableVehicles.filter(vehicle => this.isVehicleAvailable(vehicle)).length);
-  readonly canBook = computed(() => this.datesComplete() && this.availabilityChecked() && this.selectedVehicleAvailable() && this.locationReady() && this.formValid() && this.paymentReady() && this.cardComplete());
+  readonly canBook = computed(() => this.datesComplete() && this.availabilityChecked() && this.selectedVehicleAvailable() && this.locationReady() && this.formValid() && this.agreementAccepted() && this.paymentReady() && this.cardComplete());
   private stripe: StripeInstance | null = null;
   private cardNumberElement: StripeCardElement | null = null;
   private cardExpiryElement: StripeCardElement | null = null;
@@ -161,6 +181,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
     if (!this.pickupOptions().includes(this.pickupLocation())) this.pickupLocation.set(this.pickupOptions()[0] ?? '');
     if (!this.pickupOptions().length) this.fulfillmentMode.set('delivery');
     this.customerForm.statusChanges.subscribe(() => this.formValid.set(this.customerForm.valid));
+    this.customerForm.valueChanges.subscribe(() => this.invalidateAgreement());
   }
 
   ngAfterViewInit(): void {
@@ -181,6 +202,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
     this.pickupLocation.set(locations[0] ?? '');
     this.fulfillmentMode.set(locations.length ? 'pickup' : 'delivery');
     this.resetDeliveryCheck();
+    this.invalidateAgreement();
   }
   selectFulfillment(mode: 'pickup' | 'delivery'): void {
     this.fulfillmentMode.set(mode);
@@ -188,13 +210,16 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
     if (mode === 'pickup' && !this.pickupOptions().includes(this.pickupLocation())) {
       this.pickupLocation.set(this.pickupOptions()[0] ?? '');
     }
+    this.invalidateAgreement();
   }
   selectPickupLocation(location: string): void {
     this.pickupLocation.set(location);
+    this.invalidateAgreement();
   }
   deliveryAddressChanged(address: string): void {
     this.deliveryAddress.set(address);
     this.resetDeliveryCheck();
+    this.invalidateAgreement();
   }
   async checkDeliveryAddress(): Promise<void> {
     const address = this.deliveryAddress().trim();
@@ -214,6 +239,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
       this.deliveryAddress.set(result.address);
       this.verifiedDeliveryAddress.set(result.address);
       this.pickupLocation.set(result.address);
+      this.invalidateAgreement();
     } catch (error) {
       this.deliveryError.set(this.data.errorMessage(error));
     } finally {
@@ -222,21 +248,25 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   }
   updateStartDate(date: Date | null): void {
     this.startDate.set(date);
+    this.invalidateAgreement();
     this.syncBookingDatesInUrl();
     void this.refreshAvailability();
   }
   updateEndDate(date: Date | null): void {
     this.endDate.set(date);
+    this.invalidateAgreement();
     this.syncBookingDatesInUrl();
     void this.refreshAvailability();
   }
   updateStartTime(time: string): void {
     this.startTime.set(time);
+    this.invalidateAgreement();
     this.syncBookingDatesInUrl();
     void this.refreshAvailability();
   }
   updateEndTime(time: string): void {
     this.endTime.set(time);
+    this.invalidateAgreement();
     this.syncBookingDatesInUrl();
     void this.refreshAvailability();
   }
@@ -248,12 +278,103 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   isVehicleAvailable(vehicle: Vehicle): boolean {
     return !this.unavailableVehicleIds().has(vehicle.id);
   }
+  updateCoverage(checked: boolean): void {
+    this.coverage.set(checked);
+    this.invalidateAgreement();
+  }
+  setAgreementAccepted(checked: boolean): void {
+    this.agreementAccepted.set(checked);
+    this.agreementAcceptedAt.set(checked ? new Date().toISOString() : '');
+  }
+  async downloadAgreementPdf(): Promise<void> {
+    this.downloadingAgreement.set(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 48;
+      const contentWidth = pageWidth - margin * 2;
+      let y = 54;
+      const safeText = (value: string) => value
+        .replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...');
+      const addPageIfNeeded = (height: number) => {
+        if (y + height <= pageHeight - 54) return;
+        pdf.addPage();
+        y = 54;
+      };
+      const addText = (value: string, size = 9, lineGap = 4) => {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(size);
+        const lines = pdf.splitTextToSize(safeText(value), contentWidth) as string[];
+        const height = lines.length * (size + lineGap);
+        addPageIfNeeded(height);
+        pdf.text(lines, margin, y);
+        y += height;
+      };
+      const renter = `${this.customerForm.controls.firstName.value} ${this.customerForm.controls.lastName.value}`.trim() || 'Not yet provided';
+      const location = this.fulfillmentMode() === 'delivery' ? this.deliveryAddress().trim() : this.pickupLocation();
+      const acceptedAt = this.agreementAcceptedAt()
+        ? new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeStyle: 'short' }).format(new Date(this.agreementAcceptedAt()))
+        : 'Not yet accepted';
+      pdf.setProperties({ title: 'Vehicle Rental Agreement', subject: `Agreement version ${this.agreementVersion}`, author: "Bill's Premiere" });
+      pdf.setTextColor(22, 34, 54);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(18);
+      pdf.text('VEHICLE RENTAL AGREEMENT', margin, y);
+      y += 20;
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(`BILL'S PREMIERE  |  VERSION ${this.agreementVersion}`, margin, y);
+      y += 24;
+      pdf.setDrawColor(219, 227, 237);
+      pdf.line(margin, y, pageWidth - margin, y);
+      y += 18;
+      pdf.setTextColor(71, 85, 105);
+      addText(`Booking reference: ${this.confirmationId() || 'Draft - not yet booked'}\nRenter: ${renter}\nEmail: ${this.customerForm.controls.email.value || 'Not yet provided'}\nPhone: ${this.customerForm.controls.phone.value || 'Not yet provided'}\nVehicle: ${this.selectedVehicle().year} ${this.selectedVehicle().name} ${this.selectedVehicle().trim} (${this.selectedVehicle().plate})\nRental period: ${this.agreementRentalPeriod()}\n${this.fulfillmentMode() === 'delivery' ? 'Delivery and return collection' : 'Pickup and return'}: ${location || 'Not yet selected'}\nPremium coverage: ${this.coverage() ? 'Selected' : 'Not selected'}\nEstimated total: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.total())}\nAgreement status: ${this.agreementAccepted() ? 'Accepted electronically' : 'Draft'}\nAccepted by: ${this.agreementAccepted() ? renter : 'Not yet accepted'}\nAccepted at: ${acceptedAt}`, 9, 3);
+      y += 12;
+      addText(`This Vehicle Rental Agreement (the "Agreement") is between Bill's Premiere ("Owner") and ${renter} ("Renter"). The vehicle, rental period, pickup or delivery location, selected protection, and charges shown in this document and the booking confirmation are incorporated into this Agreement.`, 9, 4);
+      y += 8;
+      this.agreementSections.forEach((section, index) => {
+        const body = `${index + 1}. ${section.title} ${section.body}`;
+        addText(body, 8.5, 3.5);
+        y += 6;
+      });
+      addPageIfNeeded(68);
+      pdf.setDrawColor(148, 163, 184);
+      pdf.line(margin, y + 24, margin + 210, y + 24);
+      pdf.line(pageWidth - margin - 150, y + 24, pageWidth - margin, y + 24);
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(this.agreementAccepted() ? safeText(renter) : 'Renter signature', margin, y + 38);
+      pdf.text(this.agreementAccepted() ? safeText(acceptedAt) : 'Date', pageWidth - margin - 150, y + 38);
+      const pageCount = pdf.getNumberOfPages();
+      for (let page = 1; page <= pageCount; page++) {
+        pdf.setPage(page);
+        pdf.setFontSize(7);
+        pdf.setTextColor(148, 163, 184);
+        pdf.text(`Agreement ${this.agreementVersion}  |  Page ${page} of ${pageCount}`, pageWidth / 2, pageHeight - 24, { align: 'center' });
+      }
+      const filenamePart = (this.confirmationId() || renter || 'draft').replace(/[^a-z0-9-]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+      pdf.save(`rental-agreement-${filenamePart || 'draft'}.pdf`);
+    } catch {
+      this.snack.open('The rental agreement PDF could not be created.', 'Dismiss', { duration: 3500 });
+    } finally {
+      this.downloadingAgreement.set(false);
+    }
+  }
   async confirmBooking(): Promise<void> {
     const start = this.startDate(); const end = this.endDate();
-    if (!start || !end || !this.canBook()) { this.snack.open('Complete your dates and contact details first.', 'Dismiss', { duration: 3000 }); return; }
+    if (!start || !end || !this.canBook()) { this.snack.open('Complete every booking step and accept the rental agreement first.', 'Dismiss', { duration: 3000 }); return; }
     const startDate = this.formatDateTime(start, this.startTime())!;
     const endDate = this.formatDateTime(end, this.endTime())!;
     const customer = `${this.customerForm.controls.firstName.value} ${this.customerForm.controls.lastName.value}`;
+    const agreement = {
+      agreementAccepted: this.agreementAccepted(),
+      agreementVersion: this.agreementVersion,
+      agreementAcceptedAt: this.agreementAcceptedAt(),
+      agreementAcceptedBy: customer.trim(),
+    };
     this.submitting.set(true);
     this.paymentError.set('');
     try {
@@ -267,6 +388,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
           email: this.customerForm.controls.email.value,
           pickupLocation: this.fulfillmentMode() === 'delivery' ? this.deliveryAddress().trim() : this.pickupLocation(),
           fulfillmentMode: this.fulfillmentMode(),
+          ...agreement,
         });
         const payment = await this.stripe.confirmCardPayment(intent.clientSecret, {
           payment_method: {
@@ -293,6 +415,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
         fulfillmentMode: this.fulfillmentMode(),
         coverage: this.coverage(),
         paymentIntentId: this.paidPaymentIntentId,
+        ...agreement,
       });
       this.confirmationId.set(booking.id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -316,6 +439,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
     this.deliveryAddress.set('');
     this.resetDeliveryCheck();
     this.paidPaymentIntentId = '';
+    this.invalidateAgreement();
     this.cardNumberElement?.clear();
     this.cardExpiryElement?.clear();
     this.cardCvcElement?.clear();
@@ -324,6 +448,11 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
     this.deliveryDistance.set(null);
     this.verifiedDeliveryAddress.set('');
     this.deliveryError.set('');
+  }
+  private invalidateAgreement(): void {
+    if (!this.agreementAccepted() && !this.agreementAcceptedAt()) return;
+    this.agreementAccepted.set(false);
+    this.agreementAcceptedAt.set('');
   }
   private syncBookingDatesInUrl(): void {
     this.router.navigate([], {
@@ -346,6 +475,13 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   private formatDateTime(date: Date | null, time: string): string | null {
     const datePart = this.formatDate(date);
     return datePart && time ? `${datePart}T${time}` : null;
+  }
+  private agreementRentalPeriod(): string {
+    const start = this.combinedDateTime(this.startDate(), this.startTime());
+    const end = this.combinedDateTime(this.endDate(), this.endTime());
+    if (!start || !end) return 'Not yet selected';
+    const formatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    return `${formatter.format(start)} - ${formatter.format(end)}`;
   }
   private combinedDateTime(date: Date | null, time: string): Date | null {
     if (!date || !/^\d{2}:\d{2}$/.test(time)) return null;

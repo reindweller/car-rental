@@ -92,6 +92,10 @@ export class BookingsComponent implements OnDestroy {
         Total: booking.total,
         Status: booking.status,
         'Payment status': booking.paymentStatus ?? '',
+        'Agreement accepted': booking.agreementAccepted ? 'Yes' : 'No',
+        'Agreement version': booking.agreementVersion ?? '',
+        'Agreement accepted at': booking.agreementAcceptedAt ?? '',
+        'Agreement signed by': booking.agreementAcceptedBy ?? '',
       }));
       const sheet = XLSX.utils.json_to_sheet(rows);
       sheet['!cols'] = Object.keys(rows[0]).map(key => ({

@@ -49,6 +49,10 @@ export interface CreateBookingInput {
   fulfillmentMode: 'pickup' | 'delivery';
   coverage: boolean;
   paymentIntentId: string;
+  agreementAccepted: boolean;
+  agreementVersion: string;
+  agreementAcceptedAt: string;
+  agreementAcceptedBy: string;
 }
 
 export interface CreatePaymentIntentInput {
@@ -59,6 +63,10 @@ export interface CreatePaymentIntentInput {
   email: string;
   pickupLocation: string;
   fulfillmentMode: 'pickup' | 'delivery';
+  agreementAccepted: boolean;
+  agreementVersion: string;
+  agreementAcceptedAt: string;
+  agreementAcceptedBy: string;
 }
 
 export interface DeliveryCheckResponse {

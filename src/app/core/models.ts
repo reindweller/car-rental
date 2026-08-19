@@ -67,6 +67,10 @@ export interface Booking {
   total: number;
   paymentIntentId?: string;
   paymentStatus?: 'Paid' | 'Refunded' | 'Partially refunded';
+  agreementAccepted?: boolean;
+  agreementVersion?: string;
+  agreementAcceptedAt?: string;
+  agreementAcceptedBy?: string;
   createdAt?: string;
   status: 'Confirmed' | 'Active' | 'Pending' | 'Completed';
 }

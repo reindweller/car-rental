@@ -46,6 +46,7 @@ max_photo_bytes = 8 * 1024 * 1024
 stripe_secret_key = os.environ.get("STRIPE_SECRET_KEY", "")
 google_maps_api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 delivery_radius_miles = 20
+agreement_version = "2026-08-19"
 geocode_cache = {}
 
 
@@ -588,7 +589,30 @@ def stripe_request(method, path, params=None):
         raise ValueError(message or "Stripe could not process the payment request.") from error
 
 
+def validate_agreement(payload):
+    require_fields(payload, ["agreementVersion", "agreementAcceptedAt", "agreementAcceptedBy"])
+    if payload.get("agreementAccepted") is not True:
+        raise ValueError("The rental agreement must be accepted before payment.")
+    if str(payload["agreementVersion"]) != agreement_version:
+        raise ValueError("The rental agreement has changed. Review and accept the latest version.")
+    accepted_by = " ".join(str(payload["agreementAcceptedBy"]).split())
+    if not 2 <= len(accepted_by) <= 120:
+        raise ValueError("Enter the renter's full name before accepting the agreement.")
+    if payload.get("customer") and accepted_by.casefold() != " ".join(str(payload["customer"]).split()).casefold():
+        raise ValueError("The agreement signer must match the renter's name.")
+    try:
+        accepted_at = datetime.fromisoformat(str(payload["agreementAcceptedAt"]).replace("Z", "+00:00"))
+        if accepted_at.tzinfo is None:
+            raise ValueError
+    except (TypeError, ValueError) as error:
+        raise ValueError("The rental agreement acceptance time is invalid.") from error
+    now = datetime.now(timezone.utc)
+    if (accepted_at - now).total_seconds() > 300 or (now - accepted_at).total_seconds() > 604800:
+        raise ValueError("Review and accept the rental agreement again before payment.")
+
+
 def create_payment_intent(payload):
+    validate_agreement(payload)
     vehicle, _start, _end, _total, amount, fulfillment = rental_price(payload)
     params = {
         "amount": amount,
@@ -601,6 +625,9 @@ def create_payment_intent(payload):
         "metadata[coverage]": str(payload["coverage"]).lower(),
         "metadata[fulfillmentMode]": fulfillment["mode"],
         "metadata[pickupLocation]": fulfillment["address"],
+        "metadata[agreementVersion]": agreement_version,
+        "metadata[agreementAcceptedAt]": str(payload["agreementAcceptedAt"]),
+        "metadata[agreementAcceptedBy]": str(payload["agreementAcceptedBy"]).strip(),
     }
     if str(payload.get("email", "")).strip():
         params["receipt_email"] = str(payload["email"]).strip()
@@ -615,6 +642,7 @@ def create_payment_intent(payload):
 
 def create_booking(payload):
     require_fields(payload, ["customer", "email", "phone", "vehicleId", "startDate", "endDate", "paymentIntentId"])
+    validate_agreement(payload)
     vehicle, start, end, total, amount, fulfillment = rental_price(payload)
     payment_intent_id = str(payload["paymentIntentId"])
     if not payment_intent_id.startswith("pi_"):
@@ -634,6 +662,9 @@ def create_booking(payload):
         "coverage": str(payload["coverage"]).lower(),
         "fulfillmentMode": fulfillment["mode"],
         "pickupLocation": fulfillment["address"],
+        "agreementVersion": agreement_version,
+        "agreementAcceptedAt": str(payload["agreementAcceptedAt"]),
+        "agreementAcceptedBy": str(payload["agreementAcceptedBy"]).strip(),
     }
     if intent.get("status") != "succeeded":
         raise ValueError("Payment has not completed.")
