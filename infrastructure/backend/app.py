@@ -13,12 +13,12 @@ from urllib.request import Request, urlopen
 
 import boto3
 from botocore.config import Config
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from boto3.dynamodb.types import TypeSerializer
 
 dynamodb = boto3.resource("dynamodb")
 cognito = boto3.client("cognito-idp")
-aws_region = os.environ.get("AWS_REGION", "ap-southeast-1")
+aws_region = os.environ.get("AWS_REGION", "us-east-2")
 s3 = boto3.client(
     "s3",
     region_name=aws_region,
@@ -44,10 +44,11 @@ blocking_booking_statuses = {"Confirmed", "Active", "Pending"}
 photo_extensions = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 max_photo_bytes = 8 * 1024 * 1024
 stripe_secret_key = os.environ.get("STRIPE_SECRET_KEY", "")
-google_maps_api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 delivery_radius_miles = 20
 agreement_version = "2026-08-19"
 geocode_cache = {}
+places = boto3.client("geo-places", region_name=aws_region)
+florida_bias_position = [-81.5158, 27.6648]
 
 
 class ConflictError(Exception):
@@ -284,26 +285,28 @@ def vehicle_availability(start_value, end_value):
 
 def geocode_address(address):
     normalized = str(address or "").strip()
-    if len(normalized) < 8 or len(normalized) > 250:
-        raise ValueError("Enter a complete delivery address of up to 250 characters.")
+    if len(normalized) < 8 or len(normalized) > 200:
+        raise ValueError("Enter a complete delivery address of up to 200 characters.")
     if normalized in geocode_cache:
         return geocode_cache[normalized]
-    if not google_maps_api_key:
-        raise ValueError("Delivery distance checking is not configured.")
-    query = urlencode({"address": normalized, "key": google_maps_api_key})
     try:
-        with urlopen(f"https://maps.googleapis.com/maps/api/geocode/json?{query}", timeout=8) as result:
-            response_body = json.loads(result.read().decode())
-    except (HTTPError, OSError, ValueError) as error:
+        response_body = places.search_text(
+            QueryText=normalized,
+            BiasPosition=florida_bias_position,
+            MaxResults=1,
+        )
+    except (BotoCoreError, ClientError) as error:
         raise ValueError("The delivery address could not be checked. Please try again.") from error
-    if response_body.get("status") != "OK" or not response_body.get("results"):
+    if not response_body.get("ResultItems"):
         raise ValueError("We could not find that delivery address. Check it and try again.")
-    match = response_body["results"][0]
-    location = match["geometry"]["location"]
+    match = response_body["ResultItems"][0]
+    position = match.get("Position") or []
+    if len(position) != 2:
+        raise ValueError("We could not find that delivery address. Check it and try again.")
     geocoded = {
-        "address": match.get("formatted_address", normalized),
-        "latitude": float(location["lat"]),
-        "longitude": float(location["lng"]),
+        "address": (match.get("Address") or {}).get("Label", match.get("Title", normalized)),
+        "latitude": float(position[1]),
+        "longitude": float(position[0]),
     }
     if len(geocode_cache) >= 100:
         geocode_cache.clear()

@@ -28,7 +28,7 @@ Open `http://localhost:4200` for the customer website, or `http://localhost:4200
 
 ## AWS backend
 
-The deployed `car-rental` stack in `ap-southeast-1` contains:
+The deployed `car-rental` stack in the `billspremierarvin` account in `us-east-2` contains:
 
 - A Cognito user pool and public web client
 - An API Gateway REST API with public vehicle/booking routes and Cognito-protected staff routes
@@ -43,7 +43,7 @@ The current development configuration is in `src/environments/environment.ts`. U
 PowerShell:
 
 ```powershell
-.\infrastructure\deploy.ps1 -Profile reindweller -Region ap-southeast-1
+.\infrastructure\deploy.ps1 -Profile billspremierarvin -Region us-east-2
 ```
 
 To enable payments, create Stripe test-mode API keys, set them for the current PowerShell session, and deploy:
@@ -51,11 +51,10 @@ To enable payments, create Stripe test-mode API keys, set them for the current P
 ```powershell
 $env:STRIPE_PUBLISHABLE_KEY = "pk_test_..."
 $env:STRIPE_SECRET_KEY = "sk_test_..."
-$env:GOOGLE_MAPS_API_KEY = "..." # Enable the Google Geocoding API for 20-mile delivery checks
-.\infrastructure\deploy.ps1 -Profile reindweller -Region ap-southeast-1
+.\infrastructure\deploy.ps1 -Profile billspremierarvin -Region us-east-2
 ```
 
-The Stripe secret and Google Maps keys are sent only to the Lambda environment. The deploy script writes only the safe Stripe publishable key to the Angular environment file. Do not commit secret keys or place them in frontend code.
+Delivery-address geocoding and pickup maps use Amazon Location Service. The deployment creates a browser API key restricted to the configured site referers and writes it to the Angular environment file; Lambda geocoding uses its IAM role and does not need an API key. The Stripe secret is sent only to the Lambda environment, while the safe Stripe publishable key is written to the Angular environment file. Do not commit secret keys or place them in frontend code.
 
 ### Test a payment
 
@@ -73,14 +72,17 @@ To send the first Cognito administrator invitation during a fresh deployment:
 .\infrastructure\deploy.ps1 -AdminEmail you@example.com
 ```
 
-The script packages the Lambda, deploys CloudFormation, and writes the stack outputs into the Angular environment file. Multiple frontend origins can be allowlisted for both the API and S3 uploads:
+The script packages the Lambda, deploys CloudFormation, and writes the stack outputs into the Angular environment file. The `main` branch is hosted by the existing AWS Amplify app at `https://billspremiere.com` (with `https://main.d3dhhi3hlacwg9.amplifyapp.com` as its Amplify URL); both domains and `https://www.billspremiere.com` are included in the default API and photo-upload CORS allowlist. Multiple additional frontend origins can also be allowlisted:
 
 ```powershell
 .\infrastructure\deploy.ps1 `
-  -Profile reindweller `
-  -Region ap-southeast-1 `
-  -AllowedOrigins "http://localhost:4200","https://rentals.example.com"
+  -Profile billspremierarvin `
+  -Region us-east-2 `
+  -AllowedOrigins "http://localhost:4200","https://rentals.example.com" `
+  -AllowedMapReferers "http://localhost:4200/*","https://rentals.example.com/*"
 ```
+
+Amplify automatically builds and deploys the frontend when changes are pushed to the GitHub `main` branch. To redeploy the current commit without a new push, start a release job in the Amplify console or with the AWS CLI.
 
 ### Authorization
 

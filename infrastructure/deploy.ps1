@@ -1,19 +1,28 @@
 param(
-  [string]$Profile = "reindweller",
-  [string]$Region = "ap-southeast-1",
+  [string]$Profile = "billspremierarvin",
+  [string]$Region = "us-east-2",
   [string]$StackName = "car-rental",
-  [string]$ArtifactBucket = "cdk-hnb659fds-assets-512869302206-ap-southeast-1",
-  [string[]]$AllowedOrigins = @("http://localhost:4200"),
+  [string]$ArtifactBucket = "car-rental-artifacts-585949318267-us-east-2",
+  [string[]]$AllowedOrigins = @(
+    "http://localhost:4200",
+    "https://main.d3dhhi3hlacwg9.amplifyapp.com",
+    "https://billspremiere.com",
+    "https://www.billspremiere.com"
+  ),
+  [string[]]$AllowedMapReferers = @(
+    "http://localhost:4200/*",
+    "https://main.d3dhhi3hlacwg9.amplifyapp.com/*",
+    "https://billspremiere.com/*",
+    "https://www.billspremiere.com/*"
+  ),
   [string]$StripePublishableKey = $env:STRIPE_PUBLISHABLE_KEY,
   [string]$StripeSecretKey = $env:STRIPE_SECRET_KEY,
-  [string]$GoogleMapsApiKey = $env:GOOGLE_MAPS_API_KEY,
   [string]$AdminEmail = ""
 )
 
 $ErrorActionPreference = "Stop"
 $InfrastructureRoot = $PSScriptRoot
 $PackagedTemplate = Join-Path $InfrastructureRoot ".packaged-template.yaml"
-$AllowedOriginsValue = $AllowedOrigins -join ","
 
 aws cloudformation package `
   --template-file (Join-Path $InfrastructureRoot "template.yaml") `
@@ -22,24 +31,46 @@ aws cloudformation package `
   --profile $Profile `
   --region $Region
 
-aws cloudformation deploy `
-  --template-file $PackagedTemplate `
-  --stack-name $StackName `
-  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND `
-  --parameter-overrides "AllowedOrigins=$AllowedOriginsValue" "StripePublishableKey=$StripePublishableKey" "StripeSecretKey=$StripeSecretKey" "GoogleMapsApiKey=$GoogleMapsApiKey" `
-  --no-fail-on-empty-changeset `
-  --profile $Profile `
-  --region $Region
+function Deploy-Stack([string[]]$Origins) {
+  $ParameterOverrides = @(
+    "AllowedOrigins=$($Origins -join ',')",
+    "AllowedMapReferers=$($AllowedMapReferers -join ',')"
+  )
+  if ($StripePublishableKey) { $ParameterOverrides += "StripePublishableKey=$StripePublishableKey" }
+  if ($StripeSecretKey) { $ParameterOverrides += "StripeSecretKey=$StripeSecretKey" }
 
-$Outputs = aws cloudformation describe-stacks `
-  --stack-name $StackName `
-  --profile $Profile `
-  --region $Region `
-  --query "Stacks[0].Outputs" | ConvertFrom-Json
+  aws cloudformation deploy `
+    --template-file $PackagedTemplate `
+    --stack-name $StackName `
+    --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND `
+    --parameter-overrides $ParameterOverrides `
+    --no-fail-on-empty-changeset `
+    --profile $Profile `
+    --region $Region
+}
+
+function Read-StackOutputs {
+  return aws cloudformation describe-stacks `
+    --stack-name $StackName `
+    --profile $Profile `
+    --region $Region `
+    --query "Stacks[0].Outputs" | ConvertFrom-Json
+}
+
+Deploy-Stack $AllowedOrigins
+
+$Outputs = Read-StackOutputs
 
 function Get-Output([string]$Key) {
   return ($Outputs | Where-Object OutputKey -eq $Key).OutputValue
 }
+
+$LocationMapApiKey = aws location describe-key `
+  --key-name (Get-Output "LocationMapApiKeyName") `
+  --profile $Profile `
+  --region $Region `
+  --query Key `
+  --output text
 
 $EnvironmentPath = Join-Path (Split-Path $InfrastructureRoot) "src\environments\environment.ts"
 $EnvironmentContent = @"
@@ -53,6 +84,9 @@ export const environment = {
   },
   stripe: {
     publishableKey: '$(Get-Output "StripePublishableKey")',
+  },
+  amazonLocation: {
+    apiKey: '$LocationMapApiKey',
   },
 };
 "@
@@ -72,3 +106,4 @@ if ($AdminEmail) {
 Write-Host "Stack deployed and src/environments/environment.ts updated."
 Write-Host "API: $(Get-Output "ApiUrl")"
 Write-Host "User pool: $(Get-Output "UserPoolId")"
+Write-Host "Amplify frontend: https://main.d3dhhi3hlacwg9.amplifyapp.com"

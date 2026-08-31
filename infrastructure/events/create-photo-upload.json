@@ -3,7 +3,7 @@
   "resource": "/uploads",
   "body": "{\"contentType\":\"image/jpeg\",\"size\":4}",
   "requestContext": {
-    "domainName": "j2briozmp5.execute-api.ap-southeast-1.amazonaws.com",
+    "domainName": "goq03acjtc.execute-api.us-east-2.amazonaws.com",
     "stage": "v1",
     "authorizer": {
       "claims": {

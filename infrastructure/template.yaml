@@ -16,11 +16,10 @@ Parameters:
     Default: ''
     NoEcho: true
     Description: Stripe secret key (use an sk_test key while testing)
-  GoogleMapsApiKey:
-    Type: String
-    Default: ''
-    NoEcho: true
-    Description: Google Maps Platform key with the Geocoding API enabled
+  AllowedMapReferers:
+    Type: CommaDelimitedList
+    Default: http://localhost:4200/*
+    Description: Browser referers allowed to use the public Amazon Location map key
 
 Globals:
   Function:
@@ -36,9 +35,27 @@ Globals:
         PHOTOS_BUCKET: !Ref VehiclePhotosBucket
         ALLOWED_ORIGINS: !Join [',', !Ref AllowedOrigins]
         STRIPE_SECRET_KEY: !Ref StripeSecretKey
-        GOOGLE_MAPS_API_KEY: !Ref GoogleMapsApiKey
 
 Resources:
+  LocationMapApiKey:
+    Type: AWS::Location::APIKey
+    Properties:
+      KeyName: !Sub car-rental-map-${AWS::StackName}
+      Description: Restricted browser key for the Bill's Premiere pickup map
+      NoExpiry: true
+      ForceDelete: true
+      Restrictions:
+        AllowActions:
+          - geo-maps:*
+          - geo-places:SearchText
+        AllowResources:
+          - !Sub arn:${AWS::Partition}:geo-maps:${AWS::Region}::provider/default
+          - !Sub arn:${AWS::Partition}:geo-places:${AWS::Region}::provider/default
+        AllowReferers: !Ref AllowedMapReferers
+      Tags:
+        - Key: Application
+          Value: car-rental
+
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
@@ -202,6 +219,10 @@ Resources:
               Resource:
                 - !GetAtt VehiclesTable.Arn
                 - !GetAtt BookingsTable.Arn
+        - Statement:
+            - Effect: Allow
+              Action: geo-places:SearchText
+              Resource: !Sub arn:${AWS::Partition}:geo-places:${AWS::Region}::provider/default
         - S3CrudPolicy:
             BucketName: !Ref VehiclePhotosBucket
         - Statement:
@@ -312,6 +333,8 @@ Outputs:
     Value: !Ref UserPoolClient
   Region:
     Value: !Ref AWS::Region
+  LocationMapApiKeyName:
+    Value: !Ref LocationMapApiKey
   StripePublishableKey:
     Value: !Ref StripePublishableKey
   VehiclePhotosBucketName:

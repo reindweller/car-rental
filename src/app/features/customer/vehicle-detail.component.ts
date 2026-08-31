@@ -1,13 +1,16 @@
 import { CurrencyPipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, inject, OnDestroy, signal, ViewChild } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Params, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import maplibregl, { Map } from 'maplibre-gl';
 import { DataService } from '../../core/data.service';
+import { environment } from '../../../environments/environment';
+
+const floridaBiasPosition: [number, number] = [-81.5158, 27.6648];
 
 @Component({
   selector: 'app-vehicle-detail',
@@ -15,12 +18,13 @@ import { DataService } from '../../core/data.service';
   templateUrl: './vehicle-detail.component.html',
   styleUrl: './vehicle-detail.component.scss',
 })
-export class VehicleDetailComponent {
+export class VehicleDetailComponent implements AfterViewInit, OnDestroy {
+  @ViewChild('pickupMap') private pickupMap?: ElementRef<HTMLDivElement>;
   readonly Math = Math;
   private readonly data = inject(DataService);
   private readonly route = inject(ActivatedRoute);
-  private readonly sanitizer = inject(DomSanitizer);
   private readonly formBuilder = inject(FormBuilder);
+  private map?: Map;
   readonly vehicle = this.data.vehicles().find(vehicle => vehicle.id === Number(this.route.snapshot.paramMap.get('id'))) ?? this.data.vehicles()[0];
   readonly staffMode = this.route.snapshot.data['staff'] === true;
   readonly selectedPhoto = signal(this.vehicle.imageUrl);
@@ -31,12 +35,7 @@ export class VehicleDetailComponent {
       .map(key => [key, this.route.snapshot.queryParamMap.get(key)])
       .filter((entry): entry is [string, string] => !!entry[1])),
   };
-  readonly mapUrl: SafeResourceUrl | null = this.vehicle.carLocation
-    ? this.sanitizer.bypassSecurityTrustResourceUrl(`https://www.google.com/maps?q=${encodeURIComponent(this.vehicle.carLocation)}&output=embed`)
-    : null;
-  readonly directionsUrl = this.vehicle.carLocation
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(this.vehicle.carLocation)}`
-    : '';
+  readonly mapError = signal('');
   readonly reviewOpen = signal(false);
   readonly reviewSubmitting = signal(false);
   readonly reviewError = signal('');
@@ -48,6 +47,48 @@ export class VehicleDetailComponent {
     rating: [0, [Validators.required, Validators.min(1), Validators.max(5)]],
     body: ['', [Validators.required, Validators.minLength(10), Validators.maxLength(1000)]],
   });
+  ngAfterViewInit(): void {
+    if (this.vehicle.carLocation && this.pickupMap) {
+      void this.initializeMap(this.pickupMap.nativeElement);
+    }
+  }
+  ngOnDestroy(): void { this.map?.remove(); }
+  private async initializeMap(container: HTMLDivElement): Promise<void> {
+    const { apiKey } = environment.amazonLocation;
+    const { region } = environment.aws;
+    if (!apiKey) {
+      this.mapError.set('The pickup map is not configured.');
+      return;
+    }
+    try {
+      const response = await fetch(
+        `https://places.geo.${region}.amazonaws.com/v2/search-text?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            QueryText: this.vehicle.carLocation,
+            BiasPosition: floridaBiasPosition,
+            MaxResults: 1,
+          }),
+        },
+      );
+      if (!response.ok) throw new Error(`Amazon Location returned ${response.status}.`);
+      const body = await response.json() as { ResultItems?: Array<{ Position?: [number, number] }> };
+      const position = body.ResultItems?.[0]?.Position;
+      if (!position) throw new Error('Amazon Location returned no matching place.');
+      this.map = new maplibregl.Map({
+        container,
+        center: position,
+        zoom: 13,
+        style: `https://maps.geo.${region}.amazonaws.com/v2/styles/Standard/descriptor?key=${encodeURIComponent(apiKey)}`,
+      });
+      this.map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+      new maplibregl.Marker({ color: '#2563eb' }).setLngLat(position).addTo(this.map);
+    } catch {
+      this.mapError.set('The pickup map could not be loaded.');
+    }
+  }
   initials(name: string): string { return name.split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase(); }
   starIsFilled(star: number, rating = this.reviewForm.controls.rating.value): boolean {
     return star <= (this.hoveredRating() || rating);

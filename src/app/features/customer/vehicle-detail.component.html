@@ -31,10 +31,10 @@
     <div class="content-grid">
       <div class="content-main">
         <section class="pickup-map" id="pickup-locations">
-          @if (mapUrl) {
-            <iframe class="map-frame" [src]="mapUrl" title="Map of the vehicle pickup and return location" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+          @if (vehicle.carLocation && !mapError()) {
+            <div #pickupMap class="map-frame" role="img" aria-label="Map of the vehicle pickup and return location"></div>
           } @else {
-            <div class="map-placeholder"><mat-icon>map</mat-icon><span>Set the car location to display its map.</span></div>
+            <div class="map-placeholder"><mat-icon>map</mat-icon><span>{{ mapError() || 'Set the car location to display its map.' }}</span></div>
           }
           <div class="pickup-card">
             <header><span><mat-icon>location_on</mat-icon></span><div><h2>Vehicle pickup and return location</h2><p>Choose where to collect this vehicle.</p></div></header>
@@ -43,7 +43,6 @@
               <h3>Pick up at car location</h3>
               @if (vehicle.carLocation) {
                 <div class="location-item primary-location"><mat-icon>garage</mat-icon><span>{{ vehicle.carLocation }}</span></div>
-                <a class="map-link" [href]="directionsUrl" target="_blank" rel="noopener noreferrer">Open in Google Maps <mat-icon>open_in_new</mat-icon></a>
               } @else {
                 <p class="location-empty">Car location has not been provided.</p>
               }
