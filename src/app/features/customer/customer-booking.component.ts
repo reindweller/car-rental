@@ -1,5 +1,5 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { AfterViewInit, Component, OnDestroy, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,10 +15,12 @@ import { Vehicle } from '../../core/models';
 import { environment } from '../../../environments/environment';
 
 interface StripeCardElement {
-  mount(selector: string): void;
+  mount(container: HTMLElement): void;
   clear(): void;
   destroy(): void;
   on(event: 'change', handler: (change: { complete: boolean; error?: { message: string } }) => void): void;
+  on(event: 'ready', handler: () => void): void;
+  on(event: 'loaderror', handler: (event: { error: { message?: string } }) => void): void;
 }
 
 type StripeCardElementType = 'cardNumber' | 'cardExpiry' | 'cardCvc';
@@ -42,7 +44,7 @@ declare global {
   templateUrl: './customer-booking.component.html',
   styleUrl: './customer-booking.component.scss',
 })
-export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
+export class CustomerBookingComponent implements AfterViewInit {
   private readonly data = inject(DataService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -86,12 +88,12 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
     if (this.requestedCategory) params['category'] = this.requestedCategory;
     return params;
   });
-  readonly coverage = signal(true);
-  readonly agreementVersion = '2026-08-19';
+
+  readonly agreementVersion = '2026-09-28';
   readonly agreementSections = [
     { title: 'Eligibility and authorized drivers.', body: 'Renter confirms that they meet the disclosed minimum rental age, hold a current driver’s license valid for the vehicle, and will present it before receiving the vehicle. Only Renter and drivers approved in writing by Owner may drive. Renter is responsible for every authorized driver’s compliance.' },
     { title: 'Rental period and return.', body: 'The rental begins and ends at the dates, times, and location shown in the booking. Renter will return the vehicle, keys, documents, and accessories on time and in the condition received, ordinary wear excepted. An extension requires Owner’s prior approval and may incur additional charges.' },
-    { title: 'Charges and payment authorization.', body: 'Renter will pay the displayed rental price, taxes, selected extras, and other lawful amounts arising from the rental, including approved extension, late-return, missing fuel or charge, excessive cleaning, smoking remediation, lost key, toll, citation, impound, and damage charges. Renter authorizes Owner to charge the payment method on file after providing an itemization where required by law.' },
+    { title: 'Charges and payment authorization.', body: 'Renter will pay the displayed rental price and other lawful amounts arising from the rental, including approved extension, late-return, missing fuel or charge, excessive cleaning, smoking remediation, lost key, toll, citation, impound, and damage charges. Renter authorizes Owner to charge the payment method on file after providing an itemization where required by law.' },
     { title: 'Vehicle use.', body: 'The vehicle must be driven carefully and lawfully. It may not be used by an unauthorized or unlicensed driver; while impaired; for racing, speed testing, driver training, towing, pushing, off-road use, unlawful activity, carrying hazardous materials, or transporting persons or property for hire; or outside the permitted rental area without written approval. Seat belts and child-restraint laws must be followed.' },
     { title: 'Fuel, charging, mileage, tolls, and citations.', body: 'Renter will return the vehicle with the same fuel or battery level recorded at handover. Any mileage limit separately disclosed in the booking applies; if none is disclosed, no additional mileage limit applies. Renter is responsible for tolls, parking charges, traffic or camera violations, and related lawful administration fees incurred during the rental.' },
     { title: 'Condition, loss, and damage.', body: 'Renter will inspect the vehicle at handover, promptly report existing damage, secure the vehicle, and take reasonable steps to prevent loss. To the extent permitted by law, Renter is responsible for loss of or damage to the vehicle during the rental, towing, storage, loss of use, and reasonable recovery costs, subject to applicable law and any protection plan expressly selected in the booking. A protection plan is subject to its stated limits and exclusions and is not a substitute for legally required insurance.' },
@@ -144,9 +146,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
     return '';
   });
   readonly basePrice = computed(() => this.selectedVehicle().price * this.rentalDays());
-  readonly coveragePrice = computed(() => this.coverage() ? 18 * this.rentalDays() : 0);
-  readonly taxes = computed(() => (this.basePrice() + this.coveragePrice()) * 0.08);
-  readonly total = computed(() => this.basePrice() + this.coveragePrice() + this.taxes());
+  readonly total = computed(() => this.basePrice());
   readonly selectedVehicleAvailable = computed(() => !this.unavailableVehicleIds().has(this.selectedVehicle().id));
   readonly availableVehicleCount = computed(() => this.availableVehicles.filter(vehicle => this.isVehicleAvailable(vehicle)).length);
   readonly canBook = computed(() => this.datesComplete() && this.availabilityChecked() && this.selectedVehicleAvailable() && this.locationReady() && this.formValid() && this.agreementAccepted() && this.paymentReady() && this.cardComplete());
@@ -156,6 +156,47 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   private cardCvcElement: StripeCardElement | null = null;
   private paidPaymentIntentId = '';
   private availabilityRequest = 0;
+  private readonly cardNumberHost = viewChild<ElementRef<HTMLElement>>('cardNumberHost');
+  private readonly cardExpiryHost = viewChild<ElementRef<HTMLElement>>('cardExpiryHost');
+  private readonly cardCvcHost = viewChild<ElementRef<HTMLElement>>('cardCvcHost');
+  private readonly paymentAttempt = signal(0);
+
+  retryPayment(): void {
+    this.paymentAttempt.update(attempt => attempt + 1);
+  }
+
+  private readonly paymentLifecycle = afterRenderEffect(onCleanup => {
+    const number = this.cardNumberHost();
+    const expiry = this.cardExpiryHost();
+    const cvc = this.cardCvcHost();
+    this.paymentAttempt();
+    if (!number || !expiry || !cvc) return;
+    let active = true;
+    this.paymentReady.set(false);
+    this.paymentError.set('');
+    this.cardNumberComplete.set(false);
+    this.cardExpiryComplete.set(false);
+    this.cardCvcComplete.set(false);
+    const timeout = window.setTimeout(() => {
+      active = false;
+      this.paymentReady.set(false);
+      this.paymentError.set('The secure card fields could not load. Check your connection and allow js.stripe.com, then retry.');
+    }, 20000);
+    onCleanup(() => {
+      active = false;
+      window.clearTimeout(timeout);
+      this.cardNumberElement?.destroy();
+      this.cardExpiryElement?.destroy();
+      this.cardCvcElement?.destroy();
+      this.cardNumberElement = this.cardExpiryElement = this.cardCvcElement = null;
+      this.stripe = null;
+    });
+    void this.initializePayment(
+      [number.nativeElement, expiry.nativeElement, cvc.nativeElement],
+      () => active,
+      () => window.clearTimeout(timeout),
+    );
+  });
 
   constructor() {
     const requestedId = Number(this.route.snapshot.queryParamMap.get('vehicle'));
@@ -185,14 +226,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    this.initializePayment();
     void this.refreshAvailability();
-  }
-
-  ngOnDestroy(): void {
-    this.cardNumberElement?.destroy();
-    this.cardExpiryElement?.destroy();
-    this.cardCvcElement?.destroy();
   }
 
   selectVehicle(vehicle: Vehicle): void {
@@ -278,10 +312,6 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
   isVehicleAvailable(vehicle: Vehicle): boolean {
     return !this.unavailableVehicleIds().has(vehicle.id);
   }
-  updateCoverage(checked: boolean): void {
-    this.coverage.set(checked);
-    this.invalidateAgreement();
-  }
   setAgreementAccepted(checked: boolean): void {
     this.agreementAccepted.set(checked);
     this.agreementAcceptedAt.set(checked ? new Date().toISOString() : '');
@@ -331,7 +361,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
       pdf.line(margin, y, pageWidth - margin, y);
       y += 18;
       pdf.setTextColor(71, 85, 105);
-      addText(`Booking reference: ${this.confirmationId() || 'Draft - not yet booked'}\nRenter: ${renter}\nEmail: ${this.customerForm.controls.email.value || 'Not yet provided'}\nPhone: ${this.customerForm.controls.phone.value || 'Not yet provided'}\nVehicle: ${this.selectedVehicle().year} ${this.selectedVehicle().name} ${this.selectedVehicle().trim} (${this.selectedVehicle().plate})\nRental period: ${this.agreementRentalPeriod()}\n${this.fulfillmentMode() === 'delivery' ? 'Delivery and return collection' : 'Pickup and return'}: ${location || 'Not yet selected'}\nPremium coverage: ${this.coverage() ? 'Selected' : 'Not selected'}\nEstimated total: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.total())}\nAgreement status: ${this.agreementAccepted() ? 'Accepted electronically' : 'Draft'}\nAccepted by: ${this.agreementAccepted() ? renter : 'Not yet accepted'}\nAccepted at: ${acceptedAt}`, 9, 3);
+      addText(`Booking reference: ${this.confirmationId() || 'Draft - not yet booked'}\nRenter: ${renter}\nEmail: ${this.customerForm.controls.email.value || 'Not yet provided'}\nPhone: ${this.customerForm.controls.phone.value || 'Not yet provided'}\nVehicle: ${this.selectedVehicle().year} ${this.selectedVehicle().name} ${this.selectedVehicle().trim} (${this.selectedVehicle().plate})\nRental period: ${this.agreementRentalPeriod()}\n${this.fulfillmentMode() === 'delivery' ? 'Delivery and return collection' : 'Pickup and return'}: ${location || 'Not yet selected'}\nEstimated total: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.total())}\nAgreement status: ${this.agreementAccepted() ? 'Accepted electronically' : 'Draft'}\nAccepted by: ${this.agreementAccepted() ? renter : 'Not yet accepted'}\nAccepted at: ${acceptedAt}`, 9, 3);
       y += 12;
       addText(`This Vehicle Rental Agreement (the "Agreement") is between Bill's Premiere ("Owner") and ${renter} ("Renter"). The vehicle, rental period, pickup or delivery location, selected protection, and charges shown in this document and the booking confirmation are incorporated into this Agreement.`, 9, 4);
       y += 8;
@@ -384,7 +414,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
           vehicleId: this.selectedVehicle().id,
           startDate,
           endDate,
-          coverage: this.coverage(),
+          coverage: false,
           email: this.customerForm.controls.email.value,
           pickupLocation: this.fulfillmentMode() === 'delivery' ? this.deliveryAddress().trim() : this.pickupLocation(),
           fulfillmentMode: this.fulfillmentMode(),
@@ -413,7 +443,7 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
         endDate,
         pickupLocation: this.pickupLocation(),
         fulfillmentMode: this.fulfillmentMode(),
-        coverage: this.coverage(),
+        coverage: false,
         paymentIntentId: this.paidPaymentIntentId,
         ...agreement,
       });
@@ -513,14 +543,16 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
       if (request === this.availabilityRequest) this.checkingAvailability.set(false);
     }
   }
-  private async initializePayment(): Promise<void> {
+  private async initializePayment(hosts: HTMLElement[], isActive: () => boolean, stopTimeout: () => void): Promise<void> {
     const publishableKey = environment.stripe.publishableKey;
     if (!publishableKey) {
+      stopTimeout();
       this.paymentError.set('Payment is not configured yet. Add Stripe test keys and redeploy the backend.');
       return;
     }
     try {
       await this.loadStripeJs();
+      if (!isActive()) return;
       if (!window.Stripe) throw new Error('Stripe.js did not load.');
       this.stripe = window.Stripe(publishableKey);
       const elements = this.stripe.elements();
@@ -533,21 +565,39 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
       this.cardNumberElement = elements.create('cardNumber', { ...elementOptions, showIcon: true });
       this.cardExpiryElement = elements.create('cardExpiry', elementOptions);
       this.cardCvcElement = elements.create('cardCvc', elementOptions);
-      this.cardNumberElement.mount('#card-number-element');
-      this.cardExpiryElement.mount('#card-expiry-element');
-      this.cardCvcElement.mount('#card-cvc-element');
       this.watchCardElement(this.cardNumberElement, this.cardNumberComplete);
       this.watchCardElement(this.cardExpiryElement, this.cardExpiryComplete);
       this.watchCardElement(this.cardCvcElement, this.cardCvcComplete);
-      this.paymentReady.set(true);
+      const ready = new Set<StripeCardElement>();
+      let failed = false;
+      [this.cardNumberElement, this.cardExpiryElement, this.cardCvcElement].forEach((element, index) => {
+        element.on('ready', () => {
+          if (!isActive() || failed) return;
+          ready.add(element);
+          if (ready.size === 3) {
+            stopTimeout();
+            this.paymentReady.set(true);
+          }
+        });
+        element.on('loaderror', event => {
+          if (!isActive()) return;
+          failed = true;
+          stopTimeout();
+          this.paymentReady.set(false);
+          this.paymentError.set(event.error.message || 'The secure card fields could not load. Please retry.');
+        });
+        element.mount(hosts[index]);
+      });
     } catch (error) {
+      if (!isActive()) return;
+      stopTimeout();
       this.paymentError.set(error instanceof Error ? error.message : 'The secure payment form could not load.');
     }
   }
   private watchCardElement(element: StripeCardElement, completeness: { set(value: boolean): void }): void {
     element.on('change', change => {
       completeness.set(change.complete);
-      this.paymentError.set(change.error?.message ?? '');
+      if (this.paymentReady()) this.paymentError.set(change.error?.message ?? '');
     });
   }
   private loadStripeJs(): Promise<void> {
@@ -556,7 +606,10 @@ export class CustomerBookingComponent implements AfterViewInit, OnDestroy {
       const existing = document.getElementById('stripe-js') as HTMLScriptElement | null;
       const script = existing ?? document.createElement('script');
       script.addEventListener('load', () => resolve(), { once: true });
-      script.addEventListener('error', () => reject(new Error('The secure payment form could not load.')), { once: true });
+      script.addEventListener('error', () => {
+        script.remove();
+        reject(new Error('The secure payment form could not load. Check your connection and retry.'));
+      }, { once: true });
       if (!existing) {
         script.id = 'stripe-js';
         script.src = 'https://js.stripe.com/v3/';

@@ -90,13 +90,13 @@ export class DashboardComponent {
   private isActiveAt(booking: Booking, now: Date): boolean {
     const start = this.bookingTime(booking.startDate, false);
     const end = this.bookingTime(booking.endDate, true);
-    return booking.status !== 'Completed' && start !== null && end !== null && start <= now.getTime() && now.getTime() <= end;
+    return booking.status !== 'Completed' && booking.status !== 'Cancelled' && start !== null && end !== null && start <= now.getTime() && now.getTime() <= end;
   }
 
   private revenueForMonth(bookings: Booking[], month: string): number {
     return bookings
-      .filter(booking => booking.paymentStatus === 'Paid' && this.monthKey(this.bookingDate(booking)) === month)
-      .reduce((sum, booking) => sum + Number(booking.total || 0), 0);
+      .filter(booking => ['Paid', 'Partially refunded', 'Refunded'].includes(booking.paymentStatus ?? '') && this.monthKey(this.bookingDate(booking)) === month)
+      .reduce((sum, booking) => sum + Math.max(0, Number(booking.paidAmount ?? booking.total ?? 0) - Number(booking.refundedAmount ?? (booking.paymentStatus === 'Refunded' ? booking.total : 0))), 0);
   }
 
   private newCustomersForMonth(bookings: Booking[], month: string): number {

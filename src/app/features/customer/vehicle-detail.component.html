@@ -23,7 +23,7 @@
         <h1>{{ vehicle.name }}</h1><p class="year">{{ vehicle.year }} {{ vehicle.trim }}</p>
         <div class="rating">@if (vehicle.rating) {<mat-icon>star</mat-icon><b>{{ vehicle.rating }}</b><span>({{ vehicle.reviewCount }} ratings)</span><i></i><span>{{ vehicle.trips }} trips</span>} @else {<span>New listing · Be the first to review</span>}</div>
         <div class="specs"><span><mat-icon>airline_seat_recline_normal</mat-icon><b>{{ vehicle.seats }}</b><small>Seats</small></span><span><mat-icon>local_gas_station</mat-icon><b>{{ vehicle.fuel }}</b><small>{{ vehicle.mpg }} MPG</small></span><span><mat-icon>settings</mat-icon><b>{{ vehicle.transmission }}</b><small>Transmission</small></span></div>
-        <div class="price"><span>Daily rental rate<small>Taxes and optional extras calculated at booking</small></span><strong>{{ vehicle.price | currency:'USD':'symbol':'1.2-2' }}<small>/ day</small></strong></div>
+        <div class="price"><span>Daily rental rate<small>Total equals daily rate ? rental days</small></span><strong>{{ vehicle.price | currency:'USD':'symbol':'1.2-2' }}<small>/ day</small></strong></div>
         @if (staffMode) { <a mat-flat-button class="book" routerLink="/vehicles"><mat-icon>directions_car</mat-icon>Return to Vehicle fleet</a> } @else { <a mat-flat-button class="book" [routerLink]="['/book']" [queryParams]="bookingQueryParams">Check dates & book <mat-icon>arrow_forward</mat-icon></a> }
       </div>
     </section>

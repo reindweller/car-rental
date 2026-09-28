@@ -39,13 +39,13 @@ allowed_origins = {
 }
 roles = {"Administrator", "Manager", "Agent"}
 vehicle_statuses = {"Available", "Rented"}
-booking_statuses = {"Confirmed", "Active", "Pending", "Completed"}
+booking_statuses = {"Confirmed", "Active", "Pending", "Completed", "Cancelled"}
 blocking_booking_statuses = {"Confirmed", "Active", "Pending"}
 photo_extensions = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 max_photo_bytes = 8 * 1024 * 1024
 stripe_secret_key = os.environ.get("STRIPE_SECRET_KEY", "")
 delivery_radius_miles = 20
-agreement_version = "2026-08-19"
+agreement_version = "2026-09-28"
 geocode_cache = {}
 places = boto3.client("geo-places", region_name=aws_region)
 florida_bias_position = [-81.5158, 27.6648]
@@ -257,9 +257,11 @@ def parse_rental_dates(start_value, end_value):
     return start, end
 
 
-def unavailable_vehicle_ids(start, end):
+def unavailable_vehicle_ids(start, end, exclude_booking_id=None):
     unavailable = set()
     for booking in scan_all(bookings_table):
+        if booking.get("id") == exclude_booking_id:
+            continue
         if booking.get("status") not in blocking_booking_statuses:
             continue
         if not booking.get("vehicleId") or not booking.get("startDate") or not booking.get("endDate"):
@@ -549,26 +551,24 @@ def create_vehicle_review(identifier, payload):
     return normalize_vehicle_groups(vehicles_table.get_item(Key={"id": vehicle_id}, ConsistentRead=True)["Item"])
 
 
-def rental_price(payload):
+def rental_price(payload, exclude_booking_id=None):
     require_fields(payload, ["vehicleId", "startDate", "endDate"])
     start, end = parse_rental_dates(payload["startDate"], payload["endDate"])
     vehicle = vehicles_table.get_item(Key={"id": int(payload["vehicleId"])}).get("Item")
     if not vehicle or vehicle.get("status") != "Available":
         raise ValueError("The selected vehicle is not available.")
-    if int(payload["vehicleId"]) in unavailable_vehicle_ids(start, end):
+    if int(payload["vehicleId"]) in unavailable_vehicle_ids(start, end, exclude_booking_id):
         raise ValueError("The selected vehicle is already booked for those dates.")
     if not isinstance(payload.get("coverage"), bool):
         raise ValueError("Coverage must be true or false.")
     fulfillment = validate_fulfillment(payload, vehicle)
     rental_days = math.ceil((end - start).total_seconds() / 86400)
     subtotal = Decimal(str(vehicle["price"])) * rental_days
-    if payload["coverage"]:
-        subtotal += Decimal("18") * rental_days
-    total = (subtotal * Decimal("1.08")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    total = subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return vehicle, start, end, total, int((total * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)), fulfillment
 
 
-def stripe_request(method, path, params=None):
+def stripe_request(method, path, params=None, idempotency_key=None):
     if not stripe_secret_key:
         raise ValueError("Payments are not configured.")
     encoded = urlencode(params or {}).encode()
@@ -579,6 +579,7 @@ def stripe_request(method, path, params=None):
         headers={
             "Authorization": f"Bearer {stripe_secret_key}",
             "Content-Type": "application/x-www-form-urlencoded",
+            **({"Idempotency-Key": idempotency_key} if idempotency_key else {}),
         },
     )
     try:
@@ -646,7 +647,6 @@ def create_payment_intent(payload):
 def create_booking(payload):
     require_fields(payload, ["customer", "email", "phone", "vehicleId", "startDate", "endDate", "paymentIntentId"])
     validate_agreement(payload)
-    vehicle, start, end, total, amount, fulfillment = rental_price(payload)
     payment_intent_id = str(payload["paymentIntentId"])
     if not payment_intent_id.startswith("pi_"):
         raise ValueError("Invalid payment reference.")
@@ -656,6 +656,8 @@ def create_booking(payload):
     )
     if existing:
         return existing
+    # A saved booking blocks its own dates; retries must return it before availability checks.
+    vehicle, start, end, total, amount, fulfillment = rental_price(payload)
     intent = stripe_request("GET", f"/payment_intents/{quote(payment_intent_id, safe='')}")
     metadata = intent.get("metadata") or {}
     expected_metadata = {
@@ -688,6 +690,8 @@ def create_booking(payload):
         "deliveryDistanceMiles": fulfillment["distanceMiles"],
         "paymentIntentId": payment_intent_id,
         "paymentStatus": "Paid",
+        "paidAmount": total,
+        "refundedAmount": Decimal("0"),
         "status": "Confirmed",
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
@@ -696,12 +700,156 @@ def create_booking(payload):
 
 
 def update_booking(identifier, payload):
-    payload["id"] = identifier
+    existing = bookings_table.get_item(Key={"id": identifier}, ConsistentRead=True).get("Item")
+    if not existing:
+        raise ValueError("The booking no longer exists.")
+    if payload.get("operation") == "refund":
+        return refund_booking(existing, payload)
+    if (existing.get("refundOperation") or {}).get("status") not in {None, "succeeded", "failed", "canceled"}:
+        raise ConflictError("Finish checking the pending refund before editing this booking.")
     if payload.get("status") not in booking_statuses:
         raise ValueError("Invalid booking status.")
-    payload["updatedAt"] = datetime.now(timezone.utc).isoformat()
-    bookings_table.put_item(Item=payload, ConditionExpression="attribute_exists(id)")
-    return payload
+    transitions = {
+        "Pending": {"Pending", "Confirmed", "Cancelled"},
+        "Confirmed": {"Confirmed", "Active", "Cancelled"},
+        "Active": {"Active", "Completed"},
+        "Completed": {"Completed"},
+        "Cancelled": {"Cancelled"},
+    }
+    if payload["status"] not in transitions.get(existing.get("status"), set()):
+        raise ValueError("This status change is not allowed. Refresh the booking and try again.")
+    updates = {"status": payload["status"]}
+    rental_fields = ("vehicleId", "startDate", "endDate", "pickupLocation", "fulfillmentMode")
+    rental_changed = any(field in payload and payload[field] != existing.get(field) for field in rental_fields)
+    if rental_changed:
+        if existing["status"] not in {"Pending", "Confirmed"} or payload["status"] not in {"Pending", "Confirmed"}:
+            raise ValueError("Only pending or confirmed bookings can be rescheduled or assigned another vehicle.")
+        revised = {**existing, **{field: payload[field] for field in rental_fields if field in payload}}
+        revised.setdefault("coverage", False)
+        vehicle, start, end, total, _amount, fulfillment = rental_price(revised, identifier)
+        updates.update({
+            **{field: revised[field] for field in rental_fields},
+            "vehicle": vehicle["name"], "total": total,
+            "period": f"{start.isoformat()} - {end.isoformat()}",
+            "pickupLocation": fulfillment["address"], "deliveryDistanceMiles": fulfillment["distanceMiles"],
+            "paidAmount": existing.get("paidAmount", existing["total"] if existing.get("paymentStatus") == "Paid" else Decimal("0")),
+            "agreementNeedsReview": True,
+        })
+        if payload.get("quotedTotal") is None or Decimal(str(payload["quotedTotal"])) != total:
+            raise ValueError(f"The updated rental total is ${total:.2f}. Review the current vehicle rate and try again.")
+    for field, limit in {"customer": 150, "email": 254, "phone": 40, "staffNotes": 4000, "cancellationReason": 1000}.items():
+        if field not in payload:
+            continue
+        if not isinstance(payload[field], str) or len(payload[field].strip()) > limit:
+            raise ValueError(f"Invalid {field}.")
+        updates[field] = payload[field].strip()
+    if "customer" in updates and not updates["customer"]:
+        raise ValueError("Customer name is required.")
+    if updates.get("customer", existing.get("customer")) != existing.get("customer"):
+        updates["agreementNeedsReview"] = True
+    if updates.get("email") and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", updates["email"]):
+        raise ValueError("Enter a valid email address.")
+    if updates["status"] == "Cancelled" and not updates.get("cancellationReason", existing.get("cancellationReason", "")):
+        raise ValueError("Enter a cancellation reason.")
+    updates["updatedAt"] = datetime.now(timezone.utc).isoformat()
+    names = {f"#f{i}": field for i, field in enumerate(updates)}
+    values = {f":v{i}": value for i, value in enumerate(updates.values())}
+    names["#version"] = "updatedAt"
+    names["#status"] = "status"
+    values[":status"] = existing["status"]
+    condition = "attribute_exists(id) AND #status = :status"
+    if "updatedAt" in existing:
+        values[":version"] = existing["updatedAt"]
+        condition += " AND #version = :version"
+    else:
+        condition += " AND attribute_not_exists(#version)"
+    if payload.get("updatedAt") != existing.get("updatedAt"):
+        raise ConflictError("This booking was updated by someone else. Refresh and try again.")
+    try:
+        result = bookings_table.update_item(
+            Key={"id": identifier},
+            UpdateExpression="SET " + ", ".join(f"#f{i} = :v{i}" for i in range(len(updates))),
+            ExpressionAttributeNames=names, ExpressionAttributeValues=values,
+            ConditionExpression=condition, ReturnValues="ALL_NEW",
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            raise ConflictError("This booking changed. Refresh and try again.") from error
+        raise
+    return result["Attributes"]
+
+
+def refund_booking(booking, payload):
+    identifier = booking["id"]
+    operation = booking.get("refundOperation") or {}
+    request_id = str(payload.get("requestId", ""))
+    if not re.fullmatch(r"[a-f0-9-]{36}", request_id):
+        raise ValueError("Invalid refund request ID.")
+    if operation.get("id") == request_id and operation.get("status") in {"succeeded", "failed", "canceled"}:
+        pass
+    elif operation and operation.get("status") not in {"succeeded", "failed", "canceled"}:
+        if operation["id"] != request_id:
+            raise ConflictError("A refund is already being processed. Refresh and check its status.")
+    else:
+        if payload.get("updatedAt") != booking.get("updatedAt"):
+            raise ConflictError("This booking changed. Refresh before issuing the refund.")
+        try:
+            amount = Decimal(str(payload.get("amount", "0")))
+            valid_amount = amount.is_finite() and amount > 0 and amount == amount.quantize(Decimal("0.01"))
+        except InvalidOperation:
+            valid_amount = False
+        if not valid_amount:
+            raise ValueError("Enter a positive refund amount with at most two decimal places.")
+        reason = str(payload.get("reason", "")).strip()
+        if not reason or len(reason) > 1000:
+            raise ValueError("Enter a refund reason of up to 1000 characters.")
+        if not booking.get("paymentIntentId"):
+            raise ValueError("This booking has no Stripe payment to refund.")
+        intent = stripe_request("GET", f"/payment_intents/{quote(booking['paymentIntentId'], safe='')}")
+        charge = stripe_request("GET", f"/charges/{quote(str(intent.get('latest_charge', '')), safe='')}")
+        if charge.get("currency") != "usd" or int(amount * 100) > charge["amount"] - charge["amount_refunded"]:
+            raise ValueError("The refund exceeds the remaining refundable payment.")
+        operation = {"id": request_id, "amount": amount, "reason": reason, "status": "processing", "createdAt": datetime.now(timezone.utc).isoformat()}
+        names = {"#op": "refundOperation", "#version": "updatedAt"}
+        values = {":op": operation, ":now": operation["createdAt"]}
+        condition = "attribute_exists(id)"
+        if booking.get("updatedAt"):
+            condition += " AND #version = :version"
+            values[":version"] = booking["updatedAt"]
+        else:
+            condition += " AND attribute_not_exists(#version)"
+        try:
+            bookings_table.update_item(Key={"id": identifier}, UpdateExpression="SET #op = :op, #version = :now",
+                ExpressionAttributeNames=names, ExpressionAttributeValues=values, ConditionExpression=condition)
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                raise ConflictError("This booking changed. Refresh before issuing the refund.") from error
+            raise
+    if operation.get("refundId"):
+        refund = stripe_request("GET", f"/refunds/{quote(operation['refundId'], safe='')}")
+    else:
+        if (datetime.now(timezone.utc) - datetime.fromisoformat(operation["createdAt"])).total_seconds() >= 86400:
+            raise ValueError("This refund needs reconciliation in Stripe before retrying; its retry window has expired.")
+        refund = stripe_request("POST", "/refunds", {
+            "payment_intent": booking["paymentIntentId"], "amount": int(operation["amount"] * 100),
+            "reason": "requested_by_customer", "metadata[bookingId]": identifier,
+            "metadata[staffReason]": operation["reason"][:500],
+        }, idempotency_key=f"booking-refund-{identifier}-{operation['id']}")
+    operation = {**operation, "refundId": refund["id"], "status": refund["status"]}
+    # Persist the Stripe reference before synchronizing totals, so retries retrieve the same refund.
+    bookings_table.update_item(Key={"id": identifier}, UpdateExpression="SET refundOperation = :op",
+        ConditionExpression="refundOperation.id = :id", ExpressionAttributeValues={":op": operation, ":id": request_id})
+    intent = stripe_request("GET", f"/payment_intents/{quote(booking['paymentIntentId'], safe='')}")
+    charge = stripe_request("GET", f"/charges/{quote(str(intent['latest_charge']), safe='')}")
+    paid = Decimal(charge["amount"]) / 100
+    refunded = Decimal(charge["amount_refunded"]) / 100
+    result = bookings_table.update_item(Key={"id": identifier},
+        UpdateExpression="SET paidAmount = :paid, refundedAmount = :refunded, paymentStatus = :status, updatedAt = :now",
+        ConditionExpression="refundOperation.id = :id",
+        ExpressionAttributeValues={":paid": paid, ":refunded": refunded,
+            ":status": "Refunded" if refunded == paid else "Partially refunded" if refunded else "Paid",
+            ":now": datetime.now(timezone.utc).isoformat(), ":id": request_id}, ReturnValues="ALL_NEW")
+    return result["Attributes"]
 
 
 def attributes(user):

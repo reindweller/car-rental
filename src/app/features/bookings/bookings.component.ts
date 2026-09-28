@@ -1,3 +1,4 @@
+import { RouterLink } from '@angular/router';
 import { Component, OnDestroy, computed, signal } from '@angular/core';
 import { CurrencyPipe, NgTemplateOutlet } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,10 +12,11 @@ import { DataService } from '../../core/data.service';
 import { Booking } from '../../core/models';
 import { formatBookingPeriod } from '../../core/booking-date';
 import { BookingFilters, BookingFiltersDialogComponent } from './booking-filters-dialog.component';
+import { BookingDetailsDialogComponent } from './booking-details-dialog.component';
 
 @Component({
   selector: 'app-bookings',
-  imports: [CurrencyPipe, NgTemplateOutlet, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSnackBarModule, MatTabsModule],
+  imports: [RouterLink, CurrencyPipe, NgTemplateOutlet, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSnackBarModule, MatTabsModule],
   templateUrl: './bookings.component.html',
   styleUrl: './bookings.component.scss',
 })
@@ -35,8 +37,8 @@ export class BookingsComponent implements OnDestroy {
     const bookings = this.data.bookings();
     return [
       { label: 'Active rentals', value: bookings.filter(booking => this.isActiveAt(booking, now)).length, icon: 'key', bg: '#dbeafe' },
-      { label: 'Pickups today', value: bookings.filter(booking => this.dateKey(booking.startDate) === today).length, icon: 'north_east', bg: '#dcfce7' },
-      { label: 'Returns today', value: bookings.filter(booking => this.dateKey(booking.endDate) === today).length, icon: 'south_west', bg: '#fef3c7' },
+      { label: 'Pickups today', value: bookings.filter(booking => booking.status !== 'Cancelled' && booking.status !== 'Completed' && this.dateKey(booking.startDate) === today).length, icon: 'north_east', bg: '#dcfce7' },
+      { label: 'Returns today', value: bookings.filter(booking => booking.status !== 'Cancelled' && booking.status !== 'Completed' && this.dateKey(booking.endDate) === today).length, icon: 'south_west', bg: '#fef3c7' },
     ];
   });
   readonly filtered = computed(() => {
@@ -60,6 +62,12 @@ export class BookingsComponent implements OnDestroy {
   });
   readonly bookingPeriod = formatBookingPeriod;
   constructor(readonly data: DataService, private readonly dialog: MatDialog, private readonly snack: MatSnackBar) {}
+
+  viewBooking(booking: Booking): void {
+    this.dialog.open(BookingDetailsDialogComponent, {
+      data: booking, width: '820px', maxWidth: '94vw', autoFocus: 'first-tabbable',
+    });
+  }
 
   openFilters(): void {
     const ref = this.dialog.open(BookingFiltersDialogComponent, {
@@ -123,12 +131,12 @@ export class BookingsComponent implements OnDestroy {
   private isActiveAt(booking: Booking, now: Date): boolean {
     const start = this.bookingTime(booking.startDate, false);
     const end = this.bookingTime(booking.endDate, true);
-    return booking.status !== 'Completed' && start !== null && end !== null && start <= now.getTime() && now.getTime() <= end;
+    return booking.status !== 'Completed' && booking.status !== 'Cancelled' && start !== null && end !== null && start <= now.getTime() && now.getTime() <= end;
   }
 
   private isUpcoming(booking: Booking, now: Date): boolean {
     const start = this.bookingTime(booking.startDate, false);
-    return booking.status !== 'Completed' && start !== null && start > now.getTime();
+    return booking.status !== 'Completed' && booking.status !== 'Cancelled' && start !== null && start > now.getTime();
   }
 
   private bookingTime(value: string | undefined, endOfDay: boolean): number | null {

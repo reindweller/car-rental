@@ -72,5 +72,12 @@ export interface Booking {
   agreementAcceptedAt?: string;
   agreementAcceptedBy?: string;
   createdAt?: string;
-  status: 'Confirmed' | 'Active' | 'Pending' | 'Completed';
+  status: 'Confirmed' | 'Active' | 'Pending' | 'Completed' | 'Cancelled';
+  staffNotes?: string;
+  cancellationReason?: string;
+  updatedAt?: string;
+  paidAmount?: number;
+  refundedAmount?: number;
+  agreementNeedsReview?: boolean;
+  refundOperation?: { id: string; amount: number; reason: string; status: string; refundId?: string; createdAt: string };
 }

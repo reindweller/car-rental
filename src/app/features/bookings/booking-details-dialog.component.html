@@ -1,0 +1,100 @@
+<h2 mat-dialog-title>Manage booking <span>{{ booking.id }}</span></h2>
+<mat-dialog-content>
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  @if (message()) { <p class="success" role="status">{{ message() }}</p> }
+  <div class="summary"><div><small>Vehicle</small><strong>{{ booking.vehicle }}</strong></div><span class="status">{{ booking.status }}</span></div>
+  <form [formGroup]="form" (ngSubmit)="save()" id="booking-management-form">
+    <fieldset [disabled]="busy() || pendingRefund">
+      <section>
+        <h3>Customer and status</h3>
+        <div class="fields">
+          <mat-form-field appearance="outline"><mat-label>Customer name</mat-label><input matInput formControlName="customer" maxlength="150"><mat-error>Enter a customer name.</mat-error></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select formControlName="status" [disabled]="busy() || pendingRefund">@for (status of statuses; track status) { <mat-option [value]="status">{{ status }}</mat-option> }</mat-select></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Email</mat-label><input matInput type="email" formControlName="email"><mat-error>Enter a valid email.</mat-error></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Mobile number</mat-label><input matInput type="tel" formControlName="phone" placeholder="+1 (202) 555-0123" maxlength="40"></mat-form-field>
+        </div>
+        @if (form.controls.status.value === 'Cancelled') {
+          <mat-form-field appearance="outline" class="full"><mat-label>Cancellation reason</mat-label><textarea matInput formControlName="cancellationReason" maxlength="1000" rows="2"></textarea></mat-form-field>
+          <p class="hint">Cancellation releases the vehicle. Use the refund controls below to return a payment.</p>
+        }
+      </section>
+      @if (canReschedule) {
+        <section>
+          <h3>Reschedule or change vehicle</h3>
+          <div class="fields">
+            <mat-form-field appearance="outline" class="wide"><mat-label>Vehicle</mat-label><mat-select formControlName="vehicleId" [disabled]="busy() || pendingRefund">@for (vehicle of data.vehicles(); track vehicle.id) { <mat-option [value]="vehicle.id">{{ vehicle.year }} {{ vehicle.name }} · {{ vehicle.plate }} · {{ vehicle.price | currency:'USD' }}/day</mat-option> }</mat-select></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Start date</mat-label><input matInput [matDatepicker]="startPicker" formControlName="startDate" [max]="form.controls.endDate.value"><mat-datepicker-toggle matIconSuffix [for]="startPicker" [disabled]="busy() || pendingRefund"></mat-datepicker-toggle><mat-datepicker #startPicker [disabled]="busy() || pendingRefund"></mat-datepicker><mat-error>Enter a valid start date before the return date.</mat-error></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Start time</mat-label><input matInput type="time" formControlName="startTime"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Return date</mat-label><input matInput [matDatepicker]="returnPicker" formControlName="endDate" [min]="form.controls.startDate.value"><mat-datepicker-toggle matIconSuffix [for]="returnPicker" [disabled]="busy() || pendingRefund"></mat-datepicker-toggle><mat-datepicker #returnPicker [disabled]="busy() || pendingRefund"></mat-datepicker><mat-error>Enter a valid return date after the start date.</mat-error></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Return time</mat-label><input matInput type="time" formControlName="endTime"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Pickup or delivery</mat-label><mat-select formControlName="fulfillmentMode" [disabled]="busy() || pendingRefund"><mat-option value="pickup">Pickup</mat-option><mat-option value="delivery">Delivery</mat-option></mat-select></mat-form-field>
+            @if (form.controls.fulfillmentMode.value === 'pickup') {
+              <mat-form-field appearance="outline"><mat-label>Pickup location</mat-label><mat-select formControlName="pickupLocation" [disabled]="busy() || pendingRefund">@for (location of pickupLocations; track location) { <mat-option [value]="location">{{ location }}</mat-option> }</mat-select></mat-form-field>
+            } @else {
+              <mat-form-field appearance="outline"><mat-label>Delivery address</mat-label><input matInput formControlName="pickupLocation"></mat-form-field>
+            }
+          </div>
+          @if (rentalChanged) { <p class="hint">Revised total: <b>{{ quotedTotal | currency:'USD' }}</b>. Availability, delivery eligibility, and pricing are checked when saving. Review the amended agreement with the renter.</p> }
+        </section>
+      }
+      <section><h3>Staff notes</h3><mat-form-field appearance="outline" class="full"><mat-label>Internal notes</mat-label><textarea matInput formControlName="staffNotes" rows="3" maxlength="4000"></textarea></mat-form-field></section>
+    </fieldset>
+  </form>
+  <section>
+    <h3>Rental</h3>
+    <dl>
+      @if (booking.startDate && booking.endDate) {
+        <div><dt>Start</dt><dd>{{ booking.startDate | date:'MMM d, y, h:mm a' }}</dd></div>
+        <div><dt>Return</dt><dd>{{ booking.endDate | date:'MMM d, y, h:mm a' }}</dd></div>
+      } @else {
+        <div class="wide"><dt>Rental period</dt><dd>{{ period || 'Not provided' }}</dd></div>
+      }
+      <div><dt>Pickup or delivery</dt><dd>{{ booking.fulfillmentMode === 'delivery' ? 'Delivery' : booking.fulfillmentMode === 'pickup' ? 'Pickup' : 'Not recorded' }}</dd></div>
+      <div><dt>{{ booking.fulfillmentMode === 'delivery' ? 'Delivery address' : 'Pickup location' }}</dt><dd>{{ booking.pickupLocation || 'Not provided' }}</dd></div>
+      @if (booking.deliveryDistanceMiles != null) {
+        <div><dt>Delivery distance</dt><dd>{{ booking.deliveryDistanceMiles | number:'1.0-1' }} miles</dd></div>
+      }
+    </dl>
+  </section>
+  <section>
+    <h3>Payment</h3>
+    <dl>
+      <div><dt>Total</dt><dd class="total">{{ booking.total | currency:'USD' }}</dd></div>
+      <div><dt>Payment status</dt><dd>{{ booking.paymentStatus || 'Not recorded' }}</dd></div>
+      <div><dt>Amount paid</dt><dd>{{ paid | currency:'USD' }}</dd></div>
+      <div><dt>Amount refunded</dt><dd>{{ (booking.refundedAmount ?? 0) | currency:'USD' }}</dd></div>
+      <div><dt>{{ balance >= 0 ? 'Balance due' : 'Credit / refundable balance' }}</dt><dd>{{ (balance >= 0 ? balance : -balance) | currency:'USD' }}</dd></div>
+      @if (booking.paymentIntentId) { <div class="wide"><dt>Payment reference</dt><dd>{{ booking.paymentIntentId }}</dd></div> }
+    </dl>
+    @if (balance > 0) { <p class="hint">This balance remains due. Saving changes does not charge the customer's card.</p> }
+    @if (booking.refundOperation) { <p class="hint">Latest refund: {{ booking.refundOperation.amount | currency:'USD' }} · {{ booking.refundOperation.status }} · {{ booking.refundOperation.reason }}</p> }
+    @if (booking.paymentIntentId) {
+      <details class="refund"><summary>Refund payment</summary>
+        <p class="hint">Refunds go to the original payment method. Save or refresh any booking edits first.</p>
+        @if (pendingRefund) {
+          <button mat-stroked-button type="button" [disabled]="busy() || form.dirty" (click)="refund()">Check / retry pending refund</button>
+        } @else {
+          <div class="fields">
+            <mat-form-field appearance="outline"><mat-label>Refund amount (USD)</mat-label><input matInput type="number" min="0.01" step="0.01" [formControl]="refundAmount"><mat-error>Enter a positive amount.</mat-error></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Refund reason</mat-label><input matInput [formControl]="refundReason" maxlength="1000"><mat-error>A reason is required.</mat-error></mat-form-field>
+          </div>
+          <mat-checkbox [formControl]="refundConfirmed">Confirm refund of {{ (refundAmount.value ?? 0) | currency:'USD' }} to the customer.</mat-checkbox>
+          @if (refundRetry()) { <p class="hint">The last request has not been confirmed. Retry the same refund or refresh to check its status.</p> }
+          <button mat-stroked-button type="button" [disabled]="busy() || form.dirty || !refundConfirmed.value || refundAmount.invalid || refundReason.invalid" (click)="refund()">{{ refundRetry() ? 'Retry same refund' : 'Issue refund' }}</button>
+        }
+      </details>
+    }
+  </section>
+  <section>
+    <h3>Rental agreement</h3>
+    @if (booking.agreementNeedsReview) { <p class="hint">The rental has changed since acceptance. The original acceptance is retained; review the amended terms with the renter.</p> }
+    <dl>
+      <div><dt>Acceptance</dt><dd>{{ booking.agreementAccepted ? 'Accepted' : booking.agreementAccepted === false ? 'Not accepted' : 'Not recorded' }}</dd></div>
+      <div><dt>Version</dt><dd>{{ booking.agreementVersion || 'Not recorded' }}</dd></div>
+      @if (booking.agreementAcceptedBy) { <div><dt>Accepted by</dt><dd>{{ booking.agreementAcceptedBy }}</dd></div> }
+      @if (booking.agreementAcceptedAt) { <div><dt>Accepted at</dt><dd>{{ booking.agreementAcceptedAt | date:'MMM d, y, h:mm a' }}</dd></div> }
+    </dl>
+  </section>
+  @if (booking.createdAt) { <p class="created">Booked {{ booking.createdAt | date:'MMM d, y, h:mm a' }}</p> }
+</mat-dialog-content>
+<mat-dialog-actions align="end"><button mat-button [disabled]="busy()" (click)="refresh()">Refresh / discard edits</button><button mat-button mat-dialog-close [disabled]="busy()">Close</button><button mat-flat-button type="submit" form="booking-management-form" [disabled]="busy() || pendingRefund || form.invalid || !form.dirty">{{ busy() ? 'Processing…' : 'Save changes' }}</button></mat-dialog-actions>

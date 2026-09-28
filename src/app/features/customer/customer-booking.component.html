@@ -83,7 +83,7 @@
 
           <section class="panel details-panel">
             <header><div><span>Step 4</span><h2>Your details</h2></div><small>All fields are required</small></header>
-            <form [formGroup]="customerForm"><div class="field-row"><mat-form-field appearance="outline"><mat-label>First name</mat-label><input matInput formControlName="firstName" autocomplete="given-name"></mat-form-field><mat-form-field appearance="outline"><mat-label>Last name</mat-label><input matInput formControlName="lastName" autocomplete="family-name"></mat-form-field></div><mat-form-field appearance="outline"><mat-label>Email address</mat-label><mat-icon matPrefix>mail_outline</mat-icon><input matInput type="email" formControlName="email" autocomplete="email"></mat-form-field><mat-form-field appearance="outline"><mat-label>Mobile number</mat-label><mat-icon matPrefix>phone</mat-icon><input matInput formControlName="phone" autocomplete="tel" placeholder="+63 900 000 0000"></mat-form-field></form>
+            <form [formGroup]="customerForm"><div class="field-row"><mat-form-field appearance="outline"><mat-label>First name</mat-label><input matInput formControlName="firstName" autocomplete="given-name"></mat-form-field><mat-form-field appearance="outline"><mat-label>Last name</mat-label><input matInput formControlName="lastName" autocomplete="family-name"></mat-form-field></div><mat-form-field appearance="outline"><mat-label>Email address</mat-label><mat-icon matPrefix>mail_outline</mat-icon><input matInput type="email" formControlName="email" autocomplete="email"></mat-form-field><mat-form-field appearance="outline"><mat-label>Mobile number</mat-label><mat-icon matPrefix>phone</mat-icon><input matInput formControlName="phone" autocomplete="tel" placeholder="+1 (202) 555-0123"></mat-form-field></form>
           </section>
 
           <section class="panel agreement-panel">
@@ -113,21 +113,22 @@
             <div class="payment-fields" [class.loading]="!paymentReady()">
               <div class="payment-field card-number-field">
                 <label for="card-number-element">Card number</label>
-                <div id="card-number-element" class="card-element"></div>
+                <div #cardNumberHost id="card-number-element" class="card-element"></div>
               </div>
               <div class="payment-field-row">
                 <div class="payment-field">
                   <label for="card-expiry-element">Expiration date</label>
-                  <div id="card-expiry-element" class="card-element"></div>
+                  <div #cardExpiryHost id="card-expiry-element" class="card-element"></div>
                 </div>
                 <div class="payment-field">
                   <label for="card-cvc-element">Security code</label>
-                  <div id="card-cvc-element" class="card-element"></div>
+                  <div #cardCvcHost id="card-cvc-element" class="card-element"></div>
                 </div>
               </div>
             </div>
             @if (!paymentReady() && !paymentError()) { <p class="payment-note">Loading secure payment form…</p> }
             @if (paymentError()) { <p class="payment-error"><mat-icon>error_outline</mat-icon>{{ paymentError() }}</p> }
+            @if (paymentError() && !paymentReady()) { <button mat-stroked-button type="button" (click)="retryPayment()">Retry payment form</button> }
             <p class="payment-note"><mat-icon>verified_user</mat-icon>Your card details are encrypted and sent directly to Stripe. Bill’s Premiere never stores them.</p>
           </section>
         </div>
@@ -142,8 +143,7 @@
             <div class="spec-list"><span><mat-icon>airline_seat_recline_normal</mat-icon>{{ selectedVehicle().seats }} seats</span><span><mat-icon>speed</mat-icon>{{ selectedVehicle().mpg }} MPG</span><span><mat-icon>settings</mat-icon>{{ selectedVehicle().transmission }}</span><span><mat-icon>local_gas_station</mat-icon>{{ selectedVehicle().fuel }}</span></div>
             <div class="guest-review"><mat-icon>format_quote</mat-icon><p>{{ selectedVehicle().review }}<small>{{ selectedVehicle().reviewer ? '— ' + selectedVehicle().reviewer : 'New on Turo' }}</small></p></div>
             </a>
-            <div class="coverage"><mat-checkbox [checked]="coverage()" (change)="updateCoverage($event.checked)"><b>Premium coverage</b><small>Reduce your damage excess to $0</small></mat-checkbox><strong>+$18/day</strong></div>
-            <div class="price-lines"><p><span>Rental rate</span><b>{{ selectedVehicle().price | currency }} × {{ rentalDays() || 0 }} days</b></p><p><span>Premium coverage</span><b>{{ coveragePrice() | currency }}</b></p><p><span>Taxes & fees</span><b>{{ taxes() | currency }}</b></p></div>
+            <div class="price-lines"><p><span>Rental rate</span><b>{{ selectedVehicle().price | currency }} × {{ rentalDays() || 0 }} days</b></p></div>
             <div class="total"><span>Total<small>{{ rentalDays() ? rentalDays() + ' rental days' : 'Select dates to calculate' }}</small></span><strong>{{ total() | currency }}</strong></div>
             <button mat-flat-button class="confirm" [disabled]="!canBook() || submitting()" (click)="confirmBooking()">{{ submitting() ? 'Processing payment…' : ('Pay ' + (total() | currency) + ' & confirm') }} <mat-icon>arrow_forward</mat-icon></button>
             @if (!datesComplete()) { <p class="hint"><mat-icon>info_outline</mat-icon>Select pick-up and return dates to continue.</p> }

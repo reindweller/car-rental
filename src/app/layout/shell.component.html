@@ -7,7 +7,7 @@
 
     <nav aria-label="Main navigation">
       <span class="nav-label">Workspace</span>
-      @for (item of nav; track item.path) {
+      @for (item of nav(); track item.path) {
         @if (!item.adminOnly || auth.currentUser()?.role === 'Administrator') {
         <a [routerLink]="item.path" routerLinkActive="active" [matTooltip]="collapsed() ? item.label : ''"
            matTooltipPosition="right" (click)="mobileOpen.set(false)">

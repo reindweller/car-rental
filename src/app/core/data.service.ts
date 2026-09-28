@@ -193,8 +193,16 @@ export class DataService {
     return (error as { message?: string }).message ?? 'The backend request failed.';
   }
 
-  async updateBooking(booking: Booking): Promise<Booking> {
+  async updateBooking(booking: Booking & { quotedTotal?: number }): Promise<Booking> {
     const saved = await firstValueFrom(this.http.put<Booking>(`${this.apiUrl}/bookings/${booking.id}`, booking));
+    this.bookings.update(bookings => bookings.map(current => current.id === saved.id ? saved : current));
+    return saved;
+  }
+
+  async refundBooking(booking: Booking, amount: number, reason: string, requestId: string): Promise<Booking> {
+    const saved = await firstValueFrom(this.http.put<Booking>(`${this.apiUrl}/bookings/${booking.id}`, {
+      operation: 'refund', amount, reason, requestId, updatedAt: booking.updatedAt,
+    }));
     this.bookings.update(bookings => bookings.map(current => current.id === saved.id ? saved : current));
     return saved;
   }
