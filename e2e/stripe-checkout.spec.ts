@@ -69,7 +69,7 @@ test.describe('test-mode payment submissions', () => {
     await expect(page.getByRole('heading', { name: /ready to drive/ })).toBeVisible();
     expect(booking.paymentStatus).toBe('Paid');
     expect(booking.agreementAccepted).toBe(true);
-    expect(booking.total).toBe(vehicle.price);
+    expect(booking.total).toBe(Math.round((vehicle.price + Math.round(vehicle.price * 8) / 100) * 100) / 100);
     expect(intents).toBe(1);
     const duplicate = await page.request.post(`${environment.aws.apiUrl}/bookings`, { data: response.request().postDataJSON() });
     expect(duplicate.ok(), await duplicate.text()).toBe(true);

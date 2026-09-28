@@ -35,11 +35,11 @@ describe('Booking management', () => {
   it('quotes a reschedule and retains the amount actually paid', async () => {
     dialog.form.controls.endDate.setValue(new Date(2026, 9, 4));
     dialog.form.controls.endDate.markAsDirty();
-    expect(dialog.quotedTotal).toBe(150);
-    expect(dialog.balance).toBe(50);
-    data.updateBooking.mockResolvedValue({ ...booking, total: 150, paidAmount: 100 });
+    expect(dialog.quotedTotal).toBe(162);
+    expect(dialog.balance).toBe(62);
+    data.updateBooking.mockResolvedValue({ ...booking, total: 162, paidAmount: 100 });
     await dialog.save();
-    expect(data.updateBooking.mock.calls[0][0].quotedTotal).toBe(150);
+    expect(data.updateBooking.mock.calls[0][0].quotedTotal).toBe(162);
     expect(data.updateBooking.mock.calls[0][0].startDate).toBe('2026-10-01T10:00');
     expect(data.updateBooking.mock.calls[0][0].endDate).toBe('2026-10-04T10:00');
     expect(dialog.paid).toBe(100);

@@ -143,7 +143,7 @@
             <div class="spec-list"><span><mat-icon>airline_seat_recline_normal</mat-icon>{{ selectedVehicle().seats }} seats</span><span><mat-icon>speed</mat-icon>{{ selectedVehicle().mpg }} MPG</span><span><mat-icon>settings</mat-icon>{{ selectedVehicle().transmission }}</span><span><mat-icon>local_gas_station</mat-icon>{{ selectedVehicle().fuel }}</span></div>
             <div class="guest-review"><mat-icon>format_quote</mat-icon><p>{{ selectedVehicle().review }}<small>{{ selectedVehicle().reviewer ? '— ' + selectedVehicle().reviewer : 'New on Turo' }}</small></p></div>
             </a>
-            <div class="price-lines"><p><span>Rental rate</span><b>{{ selectedVehicle().price | currency }} × {{ rentalDays() || 0 }} days</b></p></div>
+            <div class="price-lines"><p><span>Rental rate</span><b>{{ selectedVehicle().price | currency }} × {{ rentalDays() || 0 }} days</b></p><p><span>Subtotal</span><b>{{ basePrice() | currency }}</b></p><p><span>Tax (8%)</span><b>{{ tax() | currency }}</b></p></div>
             <div class="total"><span>Total<small>{{ rentalDays() ? rentalDays() + ' rental days' : 'Select dates to calculate' }}</small></span><strong>{{ total() | currency }}</strong></div>
             <button mat-flat-button class="confirm" [disabled]="!canBook() || submitting()" (click)="confirmBooking()">{{ submitting() ? 'Processing payment…' : ('Pay ' + (total() | currency) + ' & confirm') }} <mat-icon>arrow_forward</mat-icon></button>
             @if (!datesComplete()) { <p class="hint"><mat-icon>info_outline</mat-icon>Select pick-up and return dates to continue.</p> }

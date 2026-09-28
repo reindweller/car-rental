@@ -34,7 +34,7 @@ describe('Booking card fields', () => {
       imports: [CustomerBookingComponent],
       providers: [provideRouter([]),
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) } } },
-        { provide: DataService, useValue: { vehicles: () => [{ id: 1, status: 'Available', carLocation: 'Airport' }] } },
+        { provide: DataService, useValue: { vehicles: () => [{ id: 1, price: 19.99, status: 'Available', carLocation: 'Airport' }] } },
       ],
     }).overrideComponent(CustomerBookingComponent, { set: {
       template: '@if (!confirmationId()) { <div #cardNumberHost></div><div #cardExpiryHost></div><div #cardCvcHost></div> }',
@@ -45,6 +45,18 @@ describe('Booking card fields', () => {
     TestBed.resetTestingModule();
     environment.stripe.publishableKey = originalKey;
     window.Stripe = originalStripe;
+  });
+
+  it('adds 8% tax rounded to cents to the rental subtotal', () => {
+    const fixture = TestBed.createComponent(CustomerBookingComponent);
+    const booking = fixture.componentInstance;
+    booking.startDate.set(new Date(2026, 11, 1));
+    booking.endDate.set(new Date(2026, 11, 4));
+    booking.startTime.set('10:00');
+    booking.endTime.set('10:00');
+    expect(booking.basePrice()).toBeCloseTo(59.97, 2);
+    expect(booking.tax()).toBe(4.80);
+    expect(booking.total()).toBe(64.77);
   });
 
   it('waits for all three secure fields to be ready', async () => {

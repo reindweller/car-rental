@@ -46,7 +46,7 @@ export class LandingComponent {
   });
   readonly pickupLocations = [...new Set(this.featuredVehicles.flatMap(vehicle => [vehicle.carLocation, ...(vehicle.pickupLocations ?? [])]).filter((location): location is string => !!location))].sort();
   readonly benefits = [
-    { icon: 'sell', title: 'Upfront pricing', copy: 'The price you see is the price you pay. Your total is the daily car rate multiplied by your rental days.' },
+    { icon: 'sell', title: 'Upfront pricing', copy: 'Your total is the daily car rate multiplied by your rental days, plus 8% tax. See the full breakdown before paying.' },
     { icon: 'event_available', title: 'Flexible booking', copy: 'Change your dates or vehicle with a few clicks. Plans change, and that is completely fine.' },
     { icon: 'health_and_safety', title: 'Road-ready cars', copy: 'Every vehicle passes a 40-point safety check and is detailed before every rental.' },
     { icon: 'support_agent', title: 'Real human support', copy: 'Our local team is here around the clock, wherever your journey takes you.' },

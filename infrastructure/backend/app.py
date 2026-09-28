@@ -564,7 +564,8 @@ def rental_price(payload, exclude_booking_id=None):
     fulfillment = validate_fulfillment(payload, vehicle)
     rental_days = math.ceil((end - start).total_seconds() / 86400)
     subtotal = Decimal(str(vehicle["price"])) * rental_days
-    total = subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    tax = (subtotal * Decimal("0.08")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    total = (subtotal + tax).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return vehicle, start, end, total, int((total * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)), fulfillment
 
 

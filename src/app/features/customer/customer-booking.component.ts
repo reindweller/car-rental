@@ -146,7 +146,8 @@ export class CustomerBookingComponent implements AfterViewInit {
     return '';
   });
   readonly basePrice = computed(() => this.selectedVehicle().price * this.rentalDays());
-  readonly total = computed(() => this.basePrice());
+  readonly tax = computed(() => Math.round(this.basePrice() * 8) / 100);
+  readonly total = computed(() => Math.round((this.basePrice() + this.tax()) * 100) / 100);
   readonly selectedVehicleAvailable = computed(() => !this.unavailableVehicleIds().has(this.selectedVehicle().id));
   readonly availableVehicleCount = computed(() => this.availableVehicles.filter(vehicle => this.isVehicleAvailable(vehicle)).length);
   readonly canBook = computed(() => this.datesComplete() && this.availabilityChecked() && this.selectedVehicleAvailable() && this.locationReady() && this.formValid() && this.agreementAccepted() && this.paymentReady() && this.cardComplete());

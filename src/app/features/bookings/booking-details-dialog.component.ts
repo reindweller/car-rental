@@ -69,7 +69,10 @@ export class BookingDetailsDialogComponent {
     const end = this.dateTime(value.endDate, value.endTime);
     if (!start || !end) return 0;
     const days = Math.ceil((new Date(`${end}Z`).getTime() - new Date(`${start}Z`).getTime()) / 86400000);
-    return days > 0 && this.selectedVehicle ? Math.round(days * this.selectedVehicle.price * 100) / 100 : 0;
+    if (days <= 0 || !this.selectedVehicle) return 0;
+    const subtotal = days * this.selectedVehicle.price;
+    const tax = Math.round(subtotal * 8) / 100;
+    return Math.round((subtotal + tax) * 100) / 100;
   }
   get paid(): number { return this.booking.paidAmount ?? (this.booking.paymentStatus === 'Paid' ? this.booking.total : 0); }
   get refundable(): number { return Math.max(0, this.paid - (this.booking.refundedAmount ?? 0)); }

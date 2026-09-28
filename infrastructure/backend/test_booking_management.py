@@ -95,10 +95,17 @@ class BookingManagementTests(unittest.TestCase):
 
     def test_rescheduling_reprices_without_changing_amount_paid(self):
         self.ns['vehicles_table'].get_item.return_value = {'Item': {'id': 1, 'name': 'Car', 'status': 'Available', 'price': Decimal('50')}}
-        saved = self.update(endDate='2026-10-04T10:00', quotedTotal=150)
-        self.assertEqual(saved['total'], Decimal('150'))
+        saved = self.update(endDate='2026-10-04T10:00', quotedTotal=162)
+        self.assertEqual(saved['total'], Decimal('162'))
         self.assertEqual(saved['paidAmount'], Decimal('100'))
         self.assertTrue(saved['agreementNeedsReview'])
+
+    def test_rental_price_includes_tax_rounded_to_cents(self):
+        self.ns['scan_all'] = lambda table: []
+        self.ns['vehicles_table'].get_item.return_value = {'Item': {'id': 1, 'status': 'Available', 'price': Decimal('19.99')}}
+        _, _, _, total, amount, _ = self.ns['rental_price']({**self.booking, 'endDate': '2026-10-04T10:00', 'coverage': False})
+        self.assertEqual(total, Decimal('64.77'))
+        self.assertEqual(amount, 6477)
 
     def test_vehicle_conflict_rejected(self):
         self.ns['vehicles_table'].get_item.return_value = {'Item': {'id': 2, 'name': 'Other car', 'status': 'Available', 'price': Decimal('50')}}
