@@ -21,6 +21,7 @@ async function prepare(page: Page) {
   const vehicle = vehicles.find((item: any) => item.status === 'Available' && item.carLocation && !availability.unavailableVehicleIds.includes(item.id));
   expect(vehicle, 'An available vehicle with a pickup location is required').toBeTruthy();
   await page.goto(`${process.env['E2E_BOOKING_URL'] || '/book'}?${new URLSearchParams({ ...dates, vehicle: String(vehicle.id) })}`);
+  await expect(page.getByText('Test payments enabled.', { exact: true })).toBeVisible();
   await page.getByLabel('First name', { exact: true }).fill('E2E');
   await page.getByLabel('Last name', { exact: true }).fill('Stripe Test');
   await page.getByLabel('Email address', { exact: true }).fill('stripe-e2e@example.com');
@@ -49,18 +50,19 @@ test.describe('test-mode payment submissions', () => {
     await prepare(page);
     await card(page, '4000002500003155');
     await page.getByRole('button', { name: /^Pay / }).click();
-    await expect.poll(async () => {
-      for (const frame of page.frames()) {
-        const button = frame.getByRole('button', { name: /complete authentication/i });
-        if (await button.count() && await button.first().isVisible()) return true;
-      }
-      return false;
-    }, { timeout: 45000, message: 'Stripe should show the 3D Secure test challenge' }).toBe(true);
     const saved = page.waitForResponse(response => response.url().endsWith('/bookings') && response.request().method() === 'POST');
-    for (const frame of page.frames()) {
-      const button = frame.getByRole('button', { name: /complete authentication/i });
-      if (await button.count() && await button.first().isVisible()) { await button.first().click(); break; }
-    }
+    await expect(async () => {
+      for (const frame of page.frames()) {
+        const button = frame.getByRole('button', { name: /^complete(?: authentication)?$/i }).first();
+        if (await button.count() && await button.isVisible()) {
+          await frame.waitForLoadState('load');
+          await button.click();
+          await expect(button).toBeHidden({ timeout: 5000 });
+          return;
+        }
+      }
+      throw new Error('Waiting for the Stripe authentication challenge');
+    }).toPass({ timeout: 45000 });
     const response = await saved;
     expect(response.ok()).toBe(true);
     const booking = await response.json();
