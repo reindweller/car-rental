@@ -164,3 +164,12 @@ Deploy the backend template before releasing the frontend: it adds the encrypted
 Validation on November 23, 2026: live fleet, availability, Stripe field loading, and creation of one unconfirmed USD 59.40 payment intent succeeded. No card or charge was submitted. Full confirmation and save-retry recovery are covered by mocked browser tests; a real paid booking remains unverified because this environment uses live Stripe keys. No single production root cause was established from existing logs.
 
 Run the isolated regressions with `npx playwright test e2e/booking-flow.spec.ts`, Angular tests with `npx ng test --watch=false`, and backend tests with `python -m unittest discover -s infrastructure/backend -p "test_*.py"`. The optional `e2e/booking-diagnostic.spec.ts` reads live inventory and loads real Stripe fields without supplying card data. Existing payment-submission tests require an explicitly configured Stripe test environment.
+
+
+### Temporary Stripe test mode
+
+The stack now accepts `StripeSecretName`, a Secrets Manager secret containing `STRIPE_SECRET_KEY`. The current setting is `car-rental/stripe-test`; the frontend uses its matching test publishable key. CloudFormation resolves the secret at deployment, so a rotated value requires a stack update. Secret values are not stored in this repository. Existing `StripeSecretKey` remains the fallback when `StripeSecretName` is empty.
+
+Checkout displays a test-payment notice. Bookings record `paymentMode` from Stripe's verified PaymentIntent, display a staff test label, and test payments are excluded from revenue. Automated test bookings should be cancelled after verification to release availability. Test mode cannot collect real money. Restore matching live frontend/backend keys together before accepting real rentals again.
+
+To exercise the published site, set `E2E_STRIPE_PAYMENTS=1` and `E2E_BOOKING_URL=https://billspremiere.com/book`, then run `npx playwright test e2e/stripe-checkout.spec.ts`. Verify the backend is in test mode first. The suite covers card field loading, insufficient funds, 3D Secure authentication, and retrying an interrupted booking save without a second payment.

@@ -11,6 +11,10 @@ Parameters:
     Type: String
     Default: ''
     Description: Stripe publishable key (use a pk_test key while testing)
+  StripeSecretName:
+    Type: String
+    Default: ''
+    Description: Optional Secrets Manager secret containing STRIPE_SECRET_KEY
   StripeSecretKey:
     Type: String
     Default: ''
@@ -20,6 +24,9 @@ Parameters:
     Type: CommaDelimitedList
     Default: http://localhost:4200/*
     Description: Browser referers allowed to use the public Amazon Location map key
+
+Conditions:
+  UseStripeSecret: !Not [!Equals [!Ref StripeSecretName, '']]
 
 Globals:
   Function:
@@ -35,7 +42,10 @@ Globals:
         USER_POOL_ID: !Ref UserPool
         PHOTOS_BUCKET: !Ref VehiclePhotosBucket
         ALLOWED_ORIGINS: !Join [',', !Ref AllowedOrigins]
-        STRIPE_SECRET_KEY: !Ref StripeSecretKey
+        STRIPE_SECRET_KEY: !If
+          - UseStripeSecret
+          - !Sub '{{resolve:secretsmanager:${StripeSecretName}:SecretString:STRIPE_SECRET_KEY}}'
+          - !Ref StripeSecretKey
 
 Resources:
   LocationMapApiKey:

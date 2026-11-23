@@ -1,5 +1,6 @@
 <h2 mat-dialog-title>Manage booking <span>{{ booking.id }}</span></h2>
 <mat-dialog-content>
+  @if (booking.paymentMode === 'test') { <p class="hint" role="status"><strong>Test booking:</strong> No real payment was collected.</p> }
   @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
   @if (message()) { <p class="success" role="status">{{ message() }}</p> }
   <div class="summary"><div><small>Vehicle</small><strong>{{ booking.vehicle }}</strong></div><span class="status">{{ booking.status }}</span></div>

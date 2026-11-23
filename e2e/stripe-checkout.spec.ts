@@ -20,7 +20,7 @@ async function prepare(page: Page) {
   const availability = await (await page.request.get(`${environment.aws.apiUrl}/availability`, { params: dates })).json();
   const vehicle = vehicles.find((item: any) => item.status === 'Available' && item.carLocation && !availability.unavailableVehicleIds.includes(item.id));
   expect(vehicle, 'An available vehicle with a pickup location is required').toBeTruthy();
-  await page.goto(`/book?${new URLSearchParams({ ...dates, vehicle: String(vehicle.id) })}`);
+  await page.goto(`${process.env['E2E_BOOKING_URL'] || '/book'}?${new URLSearchParams({ ...dates, vehicle: String(vehicle.id) })}`);
   await page.getByLabel('First name', { exact: true }).fill('E2E');
   await page.getByLabel('Last name', { exact: true }).fill('Stripe Test');
   await page.getByLabel('Email address', { exact: true }).fill('stripe-e2e@example.com');
@@ -40,9 +40,36 @@ test.describe('test-mode payment submissions', () => {
     const intent = page.waitForResponse(response => response.url().endsWith('/payments/intents') && response.request().method() === 'POST');
     await page.getByRole('button', { name: /^Pay / }).click();
     const response = await intent;
-    expect(response.ok(), await response.text()).toBe(true);
+    expect(response.ok(), `Payment API returned HTTP ${response.status()}`).toBe(true);
     await expect(page.locator('.payment-error')).toContainText(/insufficient|declined/i, { timeout: 30000 });
     expect(bookings).toBe(0);
+  });
+
+  test('3D Secure authentication completes a test booking', async ({ page }, testInfo) => {
+    await prepare(page);
+    await card(page, '4000002500003155');
+    await page.getByRole('button', { name: /^Pay / }).click();
+    await expect.poll(async () => {
+      for (const frame of page.frames()) {
+        const button = frame.getByRole('button', { name: /complete authentication/i });
+        if (await button.count() && await button.first().isVisible()) return true;
+      }
+      return false;
+    }, { timeout: 45000, message: 'Stripe should show the 3D Secure test challenge' }).toBe(true);
+    const saved = page.waitForResponse(response => response.url().endsWith('/bookings') && response.request().method() === 'POST');
+    for (const frame of page.frames()) {
+      const button = frame.getByRole('button', { name: /complete authentication/i });
+      if (await button.count() && await button.first().isVisible()) { await button.first().click(); break; }
+    }
+    const response = await saved;
+    expect(response.ok()).toBe(true);
+    const booking = await response.json();
+    mkdirSync('tmp/e2e', { recursive: true });
+    writeFileSync('tmp/e2e/created-booking-3ds.json', JSON.stringify(booking, null, 2));
+    expect(booking.paymentMode).toBe('test');
+    expect(booking.paymentStatus).toBe('Paid');
+    await expect(page.getByRole('heading', { name: /ready to drive/ })).toBeVisible();
+    await testInfo.attach('3ds-booking', { body: JSON.stringify({ id: booking.id, paymentMode: booking.paymentMode }), contentType: 'application/json' });
   });
 
   test('paid booking recovers from one interrupted booking request without a second payment', async ({ page }, testInfo) => {
@@ -68,6 +95,7 @@ test.describe('test-mode payment submissions', () => {
     await testInfo.attach('booking-result', { body: JSON.stringify({ id: booking.id, paymentStatus: booking.paymentStatus, total: booking.total }), contentType: 'application/json' });
     await expect(page.getByRole('heading', { name: /ready to drive/ })).toBeVisible();
     expect(booking.paymentStatus).toBe('Paid');
+    expect(booking.paymentMode).toBe('test');
     expect(booking.agreementAccepted).toBe(true);
     expect(booking.total).toBe(Math.round((vehicle.price + Math.round(vehicle.price * 8) / 100) * 100) / 100);
     expect(intents).toBe(1);
@@ -86,7 +114,7 @@ test('real Stripe test-mode card fields load and accept input', async ({ page })
   expect(environment.stripe.publishableKey.startsWith('pk_test_')).toBe(true);
   const failedRequests: string[] = [];
   page.on('requestfailed', request => failedRequests.push(`${new URL(request.url()).hostname}: ${request.failure()?.errorText}`));
-  await page.goto('/book');
+  await page.goto(process.env['E2E_BOOKING_URL'] || '/book');
   await expect(page.locator('.payment-panel')).toBeVisible({ timeout: 30000 });
   try {
     await expect(page.locator('#card-number-element iframe')).toBeVisible({ timeout: 30000 });

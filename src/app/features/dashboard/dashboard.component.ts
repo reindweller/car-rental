@@ -95,7 +95,7 @@ export class DashboardComponent {
 
   private revenueForMonth(bookings: Booking[], month: string): number {
     return bookings
-      .filter(booking => ['Paid', 'Partially refunded', 'Refunded'].includes(booking.paymentStatus ?? '') && this.monthKey(this.bookingDate(booking)) === month)
+      .filter(booking => booking.paymentMode !== 'test' && ['Paid', 'Partially refunded', 'Refunded'].includes(booking.paymentStatus ?? '') && this.monthKey(this.bookingDate(booking)) === month)
       .reduce((sum, booking) => sum + Math.max(0, Number(booking.paidAmount ?? booking.total ?? 0) - Number(booking.refundedAmount ?? (booking.paymentStatus === 'Refunded' ? booking.total : 0))), 0);
   }
 

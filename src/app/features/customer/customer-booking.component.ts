@@ -48,6 +48,7 @@ declare global {
 export class CustomerBookingComponent implements AfterViewInit {
   private readonly data = inject(DataService);
   private readonly logs = inject(BookingLogService);
+  readonly testPayments = environment.stripe.publishableKey.startsWith('pk_test_');
   readonly attemptId = signal(crypto.randomUUID());
   private log(event: string, details: Record<string, string | number | boolean> = {}): void {
     this.logs.record(this.attemptId(), event, details);

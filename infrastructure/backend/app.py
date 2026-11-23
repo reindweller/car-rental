@@ -694,6 +694,7 @@ def create_booking(payload):
         "deliveryDistanceMiles": fulfillment["distanceMiles"],
         "paymentIntentId": payment_intent_id,
         "paymentStatus": "Paid",
+        "paymentMode": "live" if intent.get("livemode", True) else "test",
         "paidAmount": total,
         "refundedAmount": Decimal("0"),
         "status": "Confirmed",

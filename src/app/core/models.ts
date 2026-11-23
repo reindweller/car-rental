@@ -52,6 +52,7 @@ export interface VehicleReview {
 }
 
 export interface Booking {
+  paymentMode?: 'live' | 'test';
   id: string;
   customer: string;
   email?: string;

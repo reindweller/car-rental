@@ -1,6 +1,7 @@
 <div class="booking-page">
   <header class="site-header"><a class="brand" routerLink="/" aria-label="Bill's Premiere home"><span><img src="assets/bills-premiere-logo.png" alt=""></span><b>Bill’s Premiere</b></a><div class="secure"><mat-icon>lock</mat-icon>Secure booking</div><a class="staff" routerLink="/login">Staff login</a></header>
 
+  @if (testPayments) { <div role="status" style="padding:14px 24px;background:#fff4dd;color:#805400;text-align:center"><strong>Test payments enabled.</strong> Use Stripe test cards only. No real money will be charged; test confirmations are not paid rental reservations.</div> }
   @if (confirmationId()) {
     <main class="confirmation">
       <div class="success-icon"><mat-icon>check</mat-icon></div><span>Payment received · Booking confirmed</span><h1>You’re ready to drive.</h1><p>We sent the details to <b>{{ customerForm.controls.email.value }}</b>. Bring your driver’s license when {{ fulfillmentMode() === 'delivery' ? 'the car is delivered' : 'you pick up the car' }}.</p>
