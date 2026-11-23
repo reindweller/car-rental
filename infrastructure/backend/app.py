@@ -11,6 +11,8 @@ from urllib.error import HTTPError
 from urllib.parse import quote, unquote, urlencode
 from urllib.request import Request, urlopen
 
+from booking_logs import browser_event, list_events, valid_attempt, write_event
+
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
@@ -27,6 +29,7 @@ s3 = boto3.client(
 )
 vehicles_table = dynamodb.Table(os.environ["VEHICLES_TABLE"])
 bookings_table = dynamodb.Table(os.environ["BOOKINGS_TABLE"])
+logs_table = dynamodb.Table(os.environ.get("BOOKING_LOGS_TABLE", "car-rental-booking-logs"))
 user_pool_id = os.environ["USER_POOL_ID"]
 photos_bucket = os.environ["PHOTOS_BUCKET"]
 allowed_origins = {
@@ -938,7 +941,7 @@ def delete_user(event, identifier):
     cognito.admin_delete_user(UserPoolId=user_pool_id, Username=identifier)
 
 
-def handler(event, _context):
+def handle_request(event, _context):
     method = event.get("httpMethod", "")
     path = event.get("resource", event.get("path", ""))
     identifier = unquote((event.get("pathParameters") or {}).get("id", ""))
@@ -950,6 +953,17 @@ def handler(event, _context):
     try:
         if method == "OPTIONS":
             return reply(204)
+        if path == "/booking-logs" and method == "POST":
+            if len(event.get("body") or "") > 4096:
+                raise ValueError("Booking event is too large.")
+            attempt, name, details = browser_event(body_of(event))
+            write_event(logs_table, attempt, name, details, "browser")
+            return reply(202, {"accepted": True})
+        if path == "/booking-logs" and method == "GET":
+            claims = claims_of(event)
+            if not claims.get("sub") or claims.get("custom:role", "Agent") not in roles:
+                raise PermissionError("Staff sign-in is required.")
+            return reply(200, list_events(logs_table, event.get("queryStringParameters") or {}))
         if path == "/vehicles" and method == "GET":
             return reply(200, list_vehicles())
         if path == "/availability" and method == "GET":
@@ -1008,3 +1022,36 @@ def handler(event, _context):
     except Exception as error:
         print(repr(error))
         return reply(500, {"message": "An unexpected backend error occurred."})
+
+
+def handler(event, context):
+    path = event.get("resource", event.get("path", ""))
+    tracked = event.get("httpMethod") == "POST" and path in {"/payments/intents", "/bookings", "/delivery/check"}
+    attempt = None
+    if tracked:
+        try:
+            attempt = body_of(event).get("attemptId")
+        except Exception:
+            pass
+        if not valid_attempt(attempt):
+            attempt = str(uuid.uuid4())
+        write_event(logs_table, attempt, "api_started", {"stage": path, "requestId": getattr(context, "aws_request_id", "")})
+    result = handle_request(event, context)
+    if tracked:
+        status = result["statusCode"]
+        details = {"stage": path, "status": status, "requestId": getattr(context, "aws_request_id", "")}
+        # Only fixed diagnostic categories; never persist arbitrary provider messages or PII.
+        if status >= 400:
+            body = json.loads(result.get("body") or "{}")
+            message = str(body.get("message", "")).lower()
+            details["reason"] = next((category for term, category in [
+                ("agreement", "agreement_validation"), ("already booked", "dates_unavailable"),
+                ("not available", "vehicle_unavailable"), ("paid amount", "payment_amount_mismatch"),
+                ("payment details", "payment_metadata_mismatch"), ("not completed", "payment_incomplete"),
+                ("configured", "payment_configuration"), ("api key", "payment_credentials"),
+                ("address", "delivery_address"), ("stripe", "payment_provider"),
+            ] if term in message), "validation" if status == 400 else "backend_error")
+        elif path == "/bookings":
+            details["bookingId"] = json.loads(result["body"])["id"]
+        write_event(logs_table, attempt, "api_failed" if status >= 400 else "api_succeeded", details)
+    return result

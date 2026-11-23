@@ -3,6 +3,7 @@ import { provideRouter, ActivatedRoute, convertToParamMap } from '@angular/route
 import { vi } from 'vitest';
 import { CustomerBookingComponent } from './customer-booking.component';
 import { DataService } from '../../core/data.service';
+import { BookingLogService } from '../../core/booking-log.service';
 import { environment } from '../../../environments/environment';
 
 describe('Booking card fields', () => {
@@ -33,6 +34,7 @@ describe('Booking card fields', () => {
     await TestBed.configureTestingModule({
       imports: [CustomerBookingComponent],
       providers: [provideRouter([]),
+        { provide: BookingLogService, useValue: { record: vi.fn(), leave: vi.fn() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) } } },
         { provide: DataService, useValue: { vehicles: () => [{ id: 1, price: 19.99, status: 'Available', carLocation: 'Airport' }] } },
       ],

@@ -21,6 +21,7 @@ export class ShellComponent {
     { path: '/dashboard', label: 'Dashboard', icon: 'grid_view', badge: '', adminOnly: false },
     { path: '/vehicles', label: 'Vehicles', icon: 'directions_car', badge: String(this.data.vehicles().length), adminOnly: false },
     { path: '/bookings', label: 'Bookings', icon: 'calendar_month', badge: String(this.data.bookings().length), adminOnly: false },
+    { path: '/logs', label: 'Logs', icon: 'receipt_long', badge: '', adminOnly: false },
     { path: '/users', label: 'User management', icon: 'group', badge: '', adminOnly: true },
   ]);
   readonly initials = computed(() => this.auth.currentUser()?.name.split(' ').map(p => p[0]).join('').slice(0, 2) ?? 'AM');

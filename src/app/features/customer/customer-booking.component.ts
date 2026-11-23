@@ -1,5 +1,5 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, DestroyRef, afterRenderEffect, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,6 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { BookingLogService } from '../../core/booking-log.service';
 import { DataService } from '../../core/data.service';
 import { Vehicle } from '../../core/models';
 import { environment } from '../../../environments/environment';
@@ -46,6 +47,11 @@ declare global {
 })
 export class CustomerBookingComponent implements AfterViewInit {
   private readonly data = inject(DataService);
+  private readonly logs = inject(BookingLogService);
+  readonly attemptId = signal(crypto.randomUUID());
+  private log(event: string, details: Record<string, string | number | boolean> = {}): void {
+    this.logs.record(this.attemptId(), event, details);
+  }
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly snack = inject(MatSnackBar);
@@ -71,8 +77,8 @@ export class CustomerBookingComponent implements AfterViewInit {
   readonly deliveryDistance = signal<number | null>(null);
   private readonly verifiedDeliveryAddress = signal('');
   readonly pickupOptions = computed(() => [...new Set([
-    this.selectedVehicle().carLocation,
-    ...(this.selectedVehicle().pickupLocations ?? []),
+    this.selectedVehicle()?.carLocation,
+    ...(this.selectedVehicle()?.pickupLocations ?? []),
   ].filter((location): location is string => !!location))]);
   readonly locationReady = computed(() => this.fulfillmentMode() === 'pickup'
     ? this.pickupOptions().includes(this.pickupLocation())
@@ -145,12 +151,25 @@ export class CustomerBookingComponent implements AfterViewInit {
     if (start && end && end <= start) return 'Return date and time must be after the pick-up date and time.';
     return '';
   });
-  readonly basePrice = computed(() => this.selectedVehicle().price * this.rentalDays());
+  readonly basePrice = computed(() => (this.selectedVehicle()?.price ?? 0) * this.rentalDays());
   readonly tax = computed(() => Math.round(this.basePrice() * 8) / 100);
   readonly total = computed(() => Math.round((this.basePrice() + this.tax()) * 100) / 100);
-  readonly selectedVehicleAvailable = computed(() => !this.unavailableVehicleIds().has(this.selectedVehicle().id));
+  readonly selectedVehicleAvailable = computed(() => !this.unavailableVehicleIds().has(this.selectedVehicle()?.id));
   readonly availableVehicleCount = computed(() => this.availableVehicles.filter(vehicle => this.isVehicleAvailable(vehicle)).length);
-  readonly canBook = computed(() => this.datesComplete() && this.availabilityChecked() && this.selectedVehicleAvailable() && this.locationReady() && this.formValid() && this.agreementAccepted() && this.paymentReady() && this.cardComplete());
+  readonly canBook = computed(() => !!this.selectedVehicle() && !this.dateError() && this.datesComplete() && this.availabilityChecked() && this.selectedVehicleAvailable() && this.locationReady() && this.formValid() && this.agreementAccepted() && this.paymentReady() && this.cardComplete());
+  readonly blockers = computed(() => {
+    const steps: string[] = [];
+    if (!this.selectedVehicle()) steps.push('vehicle');
+    if (!this.datesComplete() || this.dateError()) steps.push('dates');
+    if (!this.availabilityChecked()) steps.push('availability');
+    else if (!this.selectedVehicleAvailable()) steps.push('vehicle_unavailable');
+    if (!this.locationReady()) steps.push('location');
+    if (!this.formValid()) steps.push('customer_details');
+    if (!this.agreementAccepted()) steps.push('agreement');
+    if (!this.paymentReady()) steps.push('payment_form');
+    if (!this.cardComplete()) steps.push('card_details');
+    return steps;
+  });
   private stripe: StripeInstance | null = null;
   private cardNumberElement: StripeCardElement | null = null;
   private cardExpiryElement: StripeCardElement | null = null;
@@ -163,6 +182,8 @@ export class CustomerBookingComponent implements AfterViewInit {
   private readonly paymentAttempt = signal(0);
 
   retryPayment(): void {
+    this.log('payment_form_retry');
+    if (!window.Stripe) document.getElementById('stripe-js')?.remove();
     this.paymentAttempt.update(attempt => attempt + 1);
   }
 
@@ -200,6 +221,24 @@ export class CustomerBookingComponent implements AfterViewInit {
   });
 
   constructor() {
+    this.log('booking_started');
+    effect(() => {
+      this.log('progress', {
+        vehicleId: this.selectedVehicle()?.id ?? 0,
+        blockers: this.blockers().join(','),
+        completedSteps: ['vehicle', 'dates', 'availability', 'location', 'customer_details', 'agreement', 'payment_form', 'card_details'].filter(step => !this.blockers().includes(step)).join(','),
+        availabilityError: !!this.availabilityError(),
+        deliveryError: !!this.deliveryError(),
+        paymentError: !!this.paymentError(),
+        completed: !!this.confirmationId(),
+      });
+    });
+    const leave = () => this.logs.leave(this.attemptId(), !!this.confirmationId());
+    window.addEventListener('pagehide', leave);
+    inject(DestroyRef).onDestroy(() => {
+      window.removeEventListener('pagehide', leave);
+      leave();
+    });
     const requestedId = Number(this.route.snapshot.queryParamMap.get('vehicle'));
     const requested = this.availableVehicles.find(vehicle => vehicle.id === requestedId);
     if (requested) this.selectedVehicle.set(requested);
@@ -265,7 +304,7 @@ export class CustomerBookingComponent implements AfterViewInit {
     this.deliveryChecking.set(true);
     this.deliveryError.set('');
     try {
-      const result = await this.data.checkDelivery(this.selectedVehicle().id, address);
+      const result = await this.data.checkDelivery(this.selectedVehicle().id, address, this.attemptId());
       this.deliveryDistance.set(result.distanceMiles);
       if (!result.eligible) {
         this.deliveryError.set(`This address is ${result.distanceMiles.toFixed(1)} miles away. Delivery is limited to ${result.maxDistanceMiles} miles.`);
@@ -395,6 +434,8 @@ export class CustomerBookingComponent implements AfterViewInit {
     }
   }
   async confirmBooking(): Promise<void> {
+    if (this.submitting()) return;
+    this.log('submit_clicked', { blockers: this.blockers().join(',') });
     const start = this.startDate(); const end = this.endDate();
     if (!start || !end || !this.canBook()) { this.snack.open('Complete every booking step and accept the rental agreement first.', 'Dismiss', { duration: 3000 }); return; }
     const startDate = this.formatDateTime(start, this.startTime())!;
@@ -408,10 +449,13 @@ export class CustomerBookingComponent implements AfterViewInit {
     };
     this.submitting.set(true);
     this.paymentError.set('');
+    let stage = 'payment_intent';
     try {
       if (!this.stripe || !this.cardNumberElement) throw new Error('The secure payment form is not ready.');
       if (!this.paidPaymentIntentId) {
+        this.log('payment_intent_started');
         const intent = await this.data.createPaymentIntent({
+          attemptId: this.attemptId(),
           vehicleId: this.selectedVehicle().id,
           startDate,
           endDate,
@@ -421,6 +465,9 @@ export class CustomerBookingComponent implements AfterViewInit {
           fulfillmentMode: this.fulfillmentMode(),
           ...agreement,
         });
+        this.log('payment_intent_created');
+        stage = 'payment_confirmation';
+        this.log('payment_confirmation_started');
         const payment = await this.stripe.confirmCardPayment(intent.clientSecret, {
           payment_method: {
             card: this.cardNumberElement,
@@ -434,8 +481,12 @@ export class CustomerBookingComponent implements AfterViewInit {
         if (payment.error) throw new Error(payment.error.message || 'Payment was declined.');
         if (payment.paymentIntent?.status !== 'succeeded') throw new Error('Payment did not complete.');
         this.paidPaymentIntentId = payment.paymentIntent.id;
+        this.log('payment_succeeded');
       }
+      stage = 'booking_save';
+      this.log('booking_save_started');
       const booking = await this.data.createBooking({
+        attemptId: this.attemptId(),
         customer,
         email: this.customerForm.controls.email.value,
         phone: this.customerForm.controls.phone.value,
@@ -449,9 +500,11 @@ export class CustomerBookingComponent implements AfterViewInit {
         ...agreement,
       });
       this.confirmationId.set(booking.id);
+      this.log('booking_confirmed', { bookingId: booking.id });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Payment or booking could not be completed.';
+      this.log('submit_failed', { stage, paid: !!this.paidPaymentIntentId });
+      const message = this.data.errorMessage(error);
       this.paymentError.set(message);
       this.snack.open(message, 'Dismiss', { duration: 4500 });
     } finally {
@@ -459,6 +512,9 @@ export class CustomerBookingComponent implements AfterViewInit {
     }
   }
   bookAnother(): void {
+    this.attemptId.set(crypto.randomUUID());
+    this.log('booking_started');
+    this.availabilityChecked.set(false);
     this.confirmationId.set('');
     this.startDate.set(null);
     this.endDate.set(null);
@@ -519,7 +575,7 @@ export class CustomerBookingComponent implements AfterViewInit {
     const [hours, minutes] = time.split(':').map(Number);
     return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes);
   }
-  private async refreshAvailability(): Promise<void> {
+  async refreshAvailability(): Promise<void> {
     const request = ++this.availabilityRequest;
     const start = this.formatDateTime(this.startDate(), this.startTime());
     const end = this.formatDateTime(this.endDate(), this.endTime());
@@ -531,15 +587,18 @@ export class CustomerBookingComponent implements AfterViewInit {
       return;
     }
     this.checkingAvailability.set(true);
+    this.log('availability_started');
     try {
       const result = await this.data.checkAvailability(start, end);
       if (request !== this.availabilityRequest) return;
       this.unavailableVehicleIds.set(new Set(result.unavailableVehicleIds));
       this.availabilityChecked.set(true);
+      this.log('availability_checked', { available: this.selectedVehicleAvailable() });
     } catch (error) {
       if (request !== this.availabilityRequest) return;
       this.unavailableVehicleIds.set(new Set());
       this.availabilityError.set(this.data.errorMessage(error));
+      this.log('availability_failed');
     } finally {
       if (request === this.availabilityRequest) this.checkingAvailability.set(false);
     }

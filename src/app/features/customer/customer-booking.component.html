@@ -7,6 +7,8 @@
       <article><div class="car-thumb" [style.background]="selectedVehicle().color"><img [src]="selectedVehicle().imageUrl" [alt]="selectedVehicle().name"></div><div><small>Booking reference</small><strong>{{ confirmationId() }}</strong><span>{{ selectedVehicle().year }} {{ selectedVehicle().name }} · {{ startDate() | date:'MMM d' }}, {{ timeLabel(startTime()) }} – {{ endDate() | date:'MMM d, y' }}, {{ timeLabel(endTime()) }}</span></div><b>{{ total() | currency }}</b></article>
       <div class="confirmation-actions"><button mat-stroked-button [disabled]="downloadingAgreement()" (click)="downloadAgreementPdf()"><mat-icon>picture_as_pdf</mat-icon>{{ downloadingAgreement() ? 'Creating PDF…' : 'Download agreement' }}</button><a mat-flat-button routerLink="/">Back to home</a><button mat-stroked-button (click)="bookAnother()">Book another car</button></div>
     </main>
+  } @else if (!selectedVehicle()) {
+    <main class="booking-shell"><h1>No vehicles available</h1><p>Please return to the fleet and try again later.</p><a mat-flat-button routerLink="/">Back to vehicles</a></main>
   } @else {
     <main class="booking-shell">
       <div class="booking-heading"><a routerLink="/"><mat-icon>arrow_back</mat-icon>Back to home</a><span>Book your drive</span><h1>Choose your car and dates</h1><p>Clear pricing, instant confirmation, and free changes up to 24 hours before pickup.</p></div>
@@ -147,11 +149,16 @@
             <div class="total"><span>Total<small>{{ rentalDays() ? rentalDays() + ' rental days' : 'Select dates to calculate' }}</small></span><strong>{{ total() | currency }}</strong></div>
             <button mat-flat-button class="confirm" [disabled]="!canBook() || submitting()" (click)="confirmBooking()">{{ submitting() ? 'Processing payment…' : ('Pay ' + (total() | currency) + ' & confirm') }} <mat-icon>arrow_forward</mat-icon></button>
             @if (!datesComplete()) { <p class="hint"><mat-icon>info_outline</mat-icon>Select pick-up and return dates to continue.</p> }
+            @else if (dateError()) { <p class="hint">{{ dateError() }}</p> }
+            @else if (checkingAvailability()) { <p class="hint">Checking vehicle availability...</p> }
+            @else if (!availabilityChecked()) { <p class="hint">{{ availabilityError() || 'Availability has not been checked.' }}</p><button mat-stroked-button (click)="refreshAvailability()">Retry availability</button> }
+            @else if (!selectedVehicleAvailable()) { <p class="hint">This vehicle is booked for these dates. Choose another vehicle or change your dates.</p> }
             @else if (!locationReady()) { <p class="hint"><mat-icon>info_outline</mat-icon>Choose a pickup location or verify a delivery address.</p> }
             @else if (!formValid()) { <p class="hint"><mat-icon>info_outline</mat-icon>Complete your contact details to continue.</p> }
             @else if (!agreementAccepted()) { <p class="hint"><mat-icon>info_outline</mat-icon>Review and accept the rental agreement to continue.</p> }
+            @else if (!paymentReady()) { <p class="hint">Wait for the secure payment form, or use Retry payment form if it failed.</p> }
             @else if (!cardComplete()) { <p class="hint"><mat-icon>info_outline</mat-icon>Enter your card details to continue.</p> }
-            <div class="assurances"><span><mat-icon>verified_user</mat-icon>Secure checkout</span><span><mat-icon>event_busy</mat-icon>Free changes up to 24h</span></div>
+            <p class="hint">Support reference: {{ attemptId() }}</p><div class="assurances"><span><mat-icon>verified_user</mat-icon>Secure checkout</span><span><mat-icon>event_busy</mat-icon>Free changes up to 24h</span></div>
           </section>
         </aside>
       </div>

@@ -151,3 +151,16 @@ Angular CLI does not come with an end-to-end testing framework by default. You c
 ## Additional Resources
 
 For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+
+
+### Booking diagnostics and staff Logs
+
+Staff can open **Logs** in the side navigation. Select a UTC day, refresh, and click an attempt reference to filter the loaded events. Load more to retrieve older events on that day. Customer checkout displays the same support reference.
+
+`progress` events include `completedSteps` and `blockers`; payment and booking events record each milestone. `api_failed` includes a fixed failure category, HTTP status, and Lambda request ID. Browser events are untrusted diagnostic reports; use server outcomes to confirm persistence. A page exit or missing event alone is not proof of a failed payment. Telemetry is best effort and never blocks checkout. Names, emails, addresses, card details, tokens, and Stripe client secrets are excluded from log records.
+
+Deploy the backend template before releasing the frontend: it adds the encrypted booking-log table, 90-day TTL, public validated/rate-limited event ingestion, and Cognito-protected reads. Until both are deployed, the staff page cannot retrieve logs. Existing historical attempts cannot be reconstructed. API Gateway throttling may drop telemetry during bursts.
+
+Validation on November 23, 2026: live fleet, availability, Stripe field loading, and creation of one unconfirmed USD 59.40 payment intent succeeded. No card or charge was submitted. Full confirmation and save-retry recovery are covered by mocked browser tests; a real paid booking remains unverified because this environment uses live Stripe keys. No single production root cause was established from existing logs.
+
+Run the isolated regressions with `npx playwright test e2e/booking-flow.spec.ts`, Angular tests with `npx ng test --watch=false`, and backend tests with `python -m unittest discover -s infrastructure/backend -p "test_*.py"`. The optional `e2e/booking-diagnostic.spec.ts` reads live inventory and loads real Stripe fields without supplying card data. Existing payment-submission tests require an explicitly configured Stripe test environment.

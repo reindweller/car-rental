@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, signal } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AppUser, Booking, UserRole, Vehicle } from './models';
 import { AuthService } from './auth.service';
@@ -39,6 +39,7 @@ interface PhotoUpload {
 }
 
 export interface CreateBookingInput {
+  attemptId?: string;
   customer: string;
   email: string;
   phone: string;
@@ -56,6 +57,7 @@ export interface CreateBookingInput {
 }
 
 export interface CreatePaymentIntentInput {
+  attemptId?: string;
   vehicleId: number;
   startDate: string;
   endDate: string;
@@ -164,22 +166,22 @@ export class DataService {
   }
 
   async createBooking(input: CreateBookingInput): Promise<Booking> {
-    const booking = await firstValueFrom(this.http.post<Booking>(`${this.apiUrl}/bookings`, input));
+    const booking = await firstValueFrom(this.http.post<Booking>(`${this.apiUrl}/bookings`, input).pipe(timeout(20000)));
     if (this.auth.isAuthenticated()) this.bookings.update(bookings => [booking, ...bookings]);
     return booking;
   }
 
   async createPaymentIntent(input: CreatePaymentIntentInput): Promise<PaymentIntentResponse> {
-    return firstValueFrom(this.http.post<PaymentIntentResponse>(`${this.apiUrl}/payments/intents`, input));
+    return firstValueFrom(this.http.post<PaymentIntentResponse>(`${this.apiUrl}/payments/intents`, input).pipe(timeout(20000)));
   }
 
   async checkAvailability(startDate: string, endDate: string): Promise<AvailabilityResponse> {
     const params = new HttpParams().set('start', startDate).set('end', endDate);
-    return firstValueFrom(this.http.get<AvailabilityResponse>(`${this.apiUrl}/availability`, { params }));
+    return firstValueFrom(this.http.get<AvailabilityResponse>(`${this.apiUrl}/availability`, { params }).pipe(timeout(20000)));
   }
 
-  async checkDelivery(vehicleId: number, address: string): Promise<DeliveryCheckResponse> {
-    return firstValueFrom(this.http.post<DeliveryCheckResponse>(`${this.apiUrl}/delivery/check`, { vehicleId, address }));
+  async checkDelivery(vehicleId: number, address: string, attemptId?: string): Promise<DeliveryCheckResponse> {
+    return firstValueFrom(this.http.post<DeliveryCheckResponse>(`${this.apiUrl}/delivery/check`, { vehicleId, address, attemptId }).pipe(timeout(20000)));
   }
 
   async addVehicleReview(vehicleId: number, input: CreateReviewInput): Promise<Vehicle> {

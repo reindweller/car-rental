@@ -13,6 +13,7 @@ export const routes: Routes = [
       { path: 'vehicles', loadComponent: () => import('./features/vehicles/vehicles.component').then(m => m.VehiclesComponent) },
       { path: 'vehicles/:id', data: { staff: true }, loadComponent: () => import('./features/customer/vehicle-detail.component').then(m => m.VehicleDetailComponent) },
       { path: 'bookings', loadComponent: () => import('./features/bookings/bookings.component').then(m => m.BookingsComponent) },
+      { path: 'logs', loadComponent: () => import('./features/logs/logs.component').then(m => m.LogsComponent) },
       { path: 'users', canActivate: [adminGuard], loadComponent: () => import('./features/users/users.component').then(m => m.UsersComponent) },
     ],
   },
