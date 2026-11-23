@@ -168,7 +168,7 @@ Run the isolated regressions with `npx playwright test e2e/booking-flow.spec.ts`
 
 ### Temporary Stripe test mode
 
-The stack now accepts `StripeSecretName`, a Secrets Manager secret containing `STRIPE_SECRET_KEY`. The current setting is `car-rental/stripe-test`; the frontend uses its matching test publishable key. CloudFormation resolves the secret at deployment, so a rotated value requires a stack update. Secret values are not stored in this repository. Existing `StripeSecretKey` remains the fallback when `StripeSecretName` is empty.
+The stack now accepts `StripeSecretName`, a Secrets Manager secret containing `STRIPE_SECRET_KEY`. Test verification used `car-rental/stripe-test` and its matching frontend test publishable key. Live payments were restored after the tests passed; `StripeSecretName` is now empty and the retained live secret parameter is used. CloudFormation resolves the secret at deployment, so a rotated value requires a stack update. Secret values are not stored in this repository. Existing `StripeSecretKey` remains the fallback when `StripeSecretName` is empty.
 
 Checkout displays a test-payment notice. Bookings record `paymentMode` from Stripe's verified PaymentIntent, display a staff test label, and test payments are excluded from revenue. Automated test bookings should be cancelled after verification to release availability. Test mode cannot collect real money. Restore matching live frontend/backend keys together before accepting real rentals again.
 
