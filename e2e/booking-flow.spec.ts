@@ -80,7 +80,9 @@ test('staff can inspect Logs from navigation', async ({ page }) => {
   await page.goto('/dashboard');
   await page.getByRole('link', { name: 'Logs', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Logs', exact: true })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'api_failed', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Booking confirmation failed' })).toBeVisible();
+  await expect(page.getByText('Needs attention', { exact: true })).toBeVisible();
+  await expect(page.locator('nav a').last()).toHaveAttribute('href', '/logs');
 });
 test('anonymous visitors cannot view Logs', async ({ page }) => {
   await setup(page); await page.goto('/logs');
